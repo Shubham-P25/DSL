@@ -440,3 +440,4 @@ console.log(`File size: ${(stats.size / 1024).toFixed(2)} KB`);
 console.log(`Overrides: ${Object.keys(overrides).length}`);
 console.log(`Loanwords: ${Object.keys(loanwords).length}`);
 console.log(`Output: ${outFile}`);
+

@@ -61,3 +61,4 @@ export default function SplitTitle({ text, className = "", highlightText }: Spli
     </h1>
   );
 }
+

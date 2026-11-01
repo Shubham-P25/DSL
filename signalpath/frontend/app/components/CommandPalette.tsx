@@ -76,7 +76,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-ink hover:bg-card-line/60 cursor-pointer transition-colors"
               >
                 <LayoutDashboard className="w-4 h-4 text-primary" />
-                <span>Operator Dashboard</span>
+                <span>SignalPath Dashboard</span>
               </Command.Item>
               <Command.Item
                 onSelect={() => navigateTo("/new")}
@@ -90,7 +90,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-ink hover:bg-card-line/60 cursor-pointer transition-colors"
               >
                 <FileText className="w-4 h-4 text-sky" />
-                <span>Image OCR Text Studio</span>
+                <span>Document OCR Studio</span>
               </Command.Item>
               <Command.Item
                 onSelect={() => navigateTo("/library")}
@@ -107,19 +107,6 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                 <span>System Health & Status</span>
               </Command.Item>
             </Command.Group>
-
-            <Command.Group heading="Standalone Tools" className="text-[11px] font-bold text-ink-3 px-2 py-1 uppercase tracking-wider pt-2">
-              <Command.Item
-                onSelect={() => navigateTo("/live")}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-ink hover:bg-card-line/60 cursor-pointer transition-colors"
-              >
-                <Sparkles className="w-4 h-4 text-amber" />
-                <div className="flex items-center justify-between flex-1">
-                  <span>Live Hindi → Hinglish Captioner</span>
-                  <span className="text-[10px] text-ink-3 bg-card-line/60 px-2 py-0.5 rounded-full">In-Browser</span>
-                </div>
-              </Command.Item>
-            </Command.Group>
           </Command.List>
 
           <div className="px-4 py-2 border-t border-card-line bg-card/60 flex items-center justify-between text-[11px] text-ink-3">
@@ -131,3 +118,4 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
     </div>
   );
 }
+

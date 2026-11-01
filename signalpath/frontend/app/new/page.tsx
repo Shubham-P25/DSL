@@ -9,18 +9,18 @@ import { createJob, uploadJob, ApiError } from "@/lib/api";
 import { 
   Link2, 
   Upload, 
-  Languages, 
-  Wand2, 
   Sparkles, 
   Loader2, 
-  AlertCircle, 
   CheckCircle2, 
-  FileVideo, 
   ArrowRight,
   ShieldAlert,
-  Info
+  Info,
+  Layers,
+  FileAudio,
+  Radio,
+  Video
 } from "lucide-react";
-import { useMagnetic } from "@/lib/motion";
+import { useMagnetic, TORQUE_EASE } from "@/lib/motion";
 
 export default function CaptionStudioPage() {
   const router = useRouter();
@@ -33,9 +33,7 @@ export default function CaptionStudioPage() {
   const [activeTab, setActiveTab] = useState<"link" | "upload">("link");
   const [url, setUrl] = useState(initialUrl);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [sourceLang, setSourceLang] = useState("en"); // Default English as requested
   const [targetLang, setTargetLang] = useState<string>("en");
-  const [correct, setCorrect] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -45,28 +43,10 @@ export default function CaptionStudioPage() {
 
   // The 4 supported languages
   const CORE_LANGUAGES = [
-    { code: "en", label: "English", sub: "English", flag: "🇬🇧" },
+    { code: "en", label: "English", sub: "English (Default)", flag: "🇬🇧" },
     { code: "hi", label: "Hindi", sub: "हिन्दी", flag: "🇮🇳" },
     { code: "de", label: "German", sub: "Deutsch", flag: "🇩🇪" },
     { code: "nl", label: "Dutch", sub: "Nederlands", flag: "🇳🇱" },
-  ];
-
-  const demoVideos = [
-    {
-      title: "Me at the zoo",
-      url: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
-      desc: "Short 19s test, instant Whisper base transcribing",
-    },
-    {
-      title: "Google interns' first week",
-      url: "https://www.youtube.com/watch?v=9No-FiEInLA",
-      desc: "5.8m high-quality speech with tech terminology",
-    },
-    {
-      title: "Welcome to the Internet",
-      url: "https://www.youtube.com/watch?v=k1BneeJTDcU",
-      desc: "4.6m speech track with rich vocabulary",
-    },
   ];
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -99,12 +79,13 @@ export default function CaptionStudioPage() {
 
     try {
       if (activeTab === "link") {
-        if (!url.trim()) throw new ApiError("URL_EMPTY", "Please paste a video URL.");
-        const res = await createJob(getToken, url.trim(), sourceLang, correct, targetLang);
+        if (!url.trim()) throw new ApiError("URL_EMPTY", "Please enter or paste a valid video URL.");
+        // Always captions in English with verification
+        const res = await createJob(getToken, url.trim(), "en", true, targetLang);
         router.push(`/jobs/${res.job_id}`);
       } else {
-        if (!selectedFile) throw new ApiError("FILE_EMPTY", "Please select a file to upload.");
-        const res = await uploadJob(getToken, selectedFile, sourceLang, correct, targetLang);
+        if (!selectedFile) throw new ApiError("FILE_EMPTY", "Please select a video or audio file to upload.");
+        const res = await uploadJob(getToken, selectedFile, "en", true, targetLang);
         router.push(`/jobs/${res.job_id}`);
       }
     } catch (err: any) {
@@ -115,11 +96,14 @@ export default function CaptionStudioPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 py-2">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-ink tracking-tight">Caption Studio</h1>
-        <p className="text-xs text-ink-2 mt-1">
-          Generate word-timed captions, inspect continuous trust confidence, and localize across 4 core languages.
+    <div className="max-w-4xl mx-auto space-y-8 py-4">
+      {/* HEADER */}
+      <div className="space-y-1">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-ink tracking-tight">
+          Caption Studio
+        </h1>
+        <p className="text-xs sm:text-sm text-ink-2">
+          Submit media for word-timed English transcription and instant 4-language localization.
         </p>
       </div>
 
@@ -148,275 +132,256 @@ export default function CaptionStudioPage() {
                 }}
                 className="btn-pill-44 px-4 text-xs font-bold text-white bg-rose hover:bg-rose/90 cursor-pointer"
               >
-                Upload the video instead
+                Upload the video file instead
               </button>
               <Link
                 href="/status"
                 className="text-xs font-semibold text-rose hover:underline flex items-center gap-1"
               >
-                <Info className="w-3.5 h-3.5" /> View site status
+                <Info className="w-3.5 h-3.5" /> View system status
               </Link>
             </div>
           )}
         </motion.div>
       )}
 
-      {/* MAIN CARD */}
-      <div className="card-torque overflow-hidden shadow-card">
-        {/* TABS */}
-        <div className="flex border-b border-card-line bg-card/60 p-1.5 gap-1.5">
-          <button
-            type="button"
-            onClick={() => setActiveTab("link")}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
-              activeTab === "link"
-                ? "bg-primary text-white shadow-xs"
-                : "text-ink-2 hover:text-ink hover:bg-card-line/40"
-            }`}
-          >
-            <Link2 className="w-4 h-4" />
-            <span>Public Video Link</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("upload")}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
-              activeTab === "upload"
-                ? "bg-primary text-white shadow-xs"
-                : "text-ink-2 hover:text-ink hover:bg-card-line/40"
-            }`}
-          >
-            <Upload className="w-4 h-4" />
-            <span>Upload File</span>
-          </button>
+      {/* INTERACTIVE SEGMENTED MODE CARDS (Item 5: make them big, interactive, and attractive) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* TAB CARD 1: PUBLIC LINK */}
+        <div
+          onClick={() => setActiveTab("link")}
+          className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between space-y-3 ${
+            activeTab === "link"
+              ? "border-primary bg-card shadow-lg ring-2 ring-primary/20"
+              : "border-card-line bg-card/60 hover:border-card-line/80 hover:bg-card"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div
+              className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                activeTab === "link" ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-card-line text-ink-2"
+              }`}
+            >
+              <Link2 className="w-6 h-6" />
+            </div>
+            <span
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-pill uppercase tracking-wider font-mono ${
+                activeTab === "link" ? "bg-primary/10 text-primary border border-primary/20" : "text-ink-3"
+              }`}
+            >
+              Stream Ingest
+            </span>
+          </div>
+
+          <div>
+            <div className="font-bold text-base text-ink">Public Video Link</div>
+            <div className="text-xs text-ink-3 mt-0.5">
+              Paste YouTube, Instagram Reel, Facebook, or direct .mp4 URL
+            </div>
+          </div>
+
+          <div className="text-[11px] font-medium text-teal flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Zero file upload time • 16 kHz PyAV audio buffer</span>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* TAB 1: LINK INPUT */}
-          {activeTab === "link" && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-ink mb-2">
-                  Video URL
-                </label>
-                <div className="relative">
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className="w-full px-4 py-3 rounded-xl border border-card-line bg-paper text-ink text-sm placeholder:text-ink-3 focus:outline-hidden focus:border-primary"
-                  />
-                </div>
-              </div>
-
-              {/* DEMO VIDEO CHIPS */}
-              <div className="space-y-1.5">
-                <span className="text-[11px] font-bold text-ink-3 uppercase tracking-wider">
-                  Or test with an instant demo link:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {demoVideos.map((demo, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setUrl(demo.url)}
-                      className="px-3 py-1.5 rounded-pill bg-paper border border-card-line text-[11px] font-medium text-ink-2 hover:text-ink hover:border-primary/50 transition-all text-left flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Sparkles className="w-3 h-3 text-primary" />
-                      <span>{demo.title}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: UPLOAD DROPZONE */}
-          {activeTab === "upload" && (
-            <div className="space-y-4">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*,audio/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
-                  isDragging
-                    ? "border-primary bg-primary/5"
-                    : selectedFile
-                    ? "border-teal bg-teal/5"
-                    : "border-card-line hover:border-primary/50 hover:bg-card-line/20"
-                }`}
-              >
-                {selectedFile ? (
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 rounded-full bg-teal/15 text-teal mx-auto flex items-center justify-center">
-                      <CheckCircle2 className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-ink">{selectedFile.name}</p>
-                      <p className="text-xs text-ink-3">
-                        {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • Ready to transcribe
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedFile(null);
-                      }}
-                      className="text-xs text-rose hover:underline pt-1"
-                    >
-                      Change file
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 rounded-full bg-card-line text-ink-2 mx-auto flex items-center justify-center">
-                      <Upload className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-ink">
-                        Drop video or audio file here, or click to browse
-                      </p>
-                      <p className="text-xs text-ink-3 mt-1">
-                        MP4, MOV, MKV, MP3, WAV, M4A up to 500 MB
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* OPTIONS GRID */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-card-line">
-            {/* SPEECH SOURCE LANGUAGE (DEFAULT ENGLISH) */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-1.5">
-                <Languages className="w-3.5 h-3.5 text-primary" />
-                <span>Source Speech Language</span>
-              </label>
-              <select
-                value={sourceLang}
-                onChange={(e) => setSourceLang(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-card-line text-ink text-sm bg-paper font-medium focus:outline-hidden focus:border-primary"
-              >
-                <option value="en">English (Default)</option>
-                <option value="hi">Hindi (हिन्दी)</option>
-                <option value="de">German (Deutsch)</option>
-                <option value="nl">Dutch (Nederlands)</option>
-              </select>
-              <p className="text-[11px] text-ink-3">
-                All videos get captioned in <strong>English</strong> by default.
-              </p>
-            </div>
-
-            {/* AI GLOSSARY CORRECTION */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-ink flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Wand2 className="w-3.5 h-3.5 text-amber" />
-                  <span>AI Error Correction</span>
-                </span>
-                <span className="text-[10px] text-teal font-mono bg-teal/10 px-2 py-0.5 rounded-pill">Active</span>
-              </label>
-              <div
-                onClick={() => setCorrect(!correct)}
-                className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                  correct ? "border-primary/40 bg-primary/5" : "border-card-line bg-paper"
-                }`}
-              >
-                <div className="text-xs">
-                  <div className="font-bold text-ink">Auto-correct captions</div>
-                  <div className="text-ink-3 text-[11px]">Local fuzzy + glossary repair</div>
-                </div>
-                <div
-                  className={`w-9 h-5 rounded-full transition-colors p-0.5 ${
-                    correct ? "bg-primary" : "bg-card-line"
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                      correct ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* DESIRED CAPTION LANGUAGE - THE 4 TYPES */}
-          <div className="space-y-2.5 pt-4 border-t border-card-line">
-            <label className="block text-xs font-bold uppercase tracking-wider text-ink flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
-                <span>Primary Caption Output Language</span>
-              </span>
-              <span className="text-[10px] font-bold text-teal bg-teal/10 px-2 py-0.5 rounded-pill font-mono">
-                4 Core Languages
-              </span>
-            </label>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {CORE_LANGUAGES.map((item) => (
-                <button
-                  key={item.code}
-                  type="button"
-                  onClick={() => setTargetLang(item.code)}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative ${
-                    targetLang === item.code
-                      ? "border-primary bg-primary/10 ring-2 ring-primary/20 shadow-xs"
-                      : "border-card-line bg-card hover:bg-card-line/30"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl">{item.flag}</span>
-                    {targetLang === item.code && (
-                      <CheckCircle2 className="w-4 h-4 text-primary" />
-                    )}
-                  </div>
-                  <div className="mt-2 font-bold text-xs text-ink">{item.label}</div>
-                  <div className="text-[11px] text-ink-3">{item.sub}</div>
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-ink-3">
-              Captions will be generated in English, and you can translate on-demand into Hindi, German, and Dutch in the viewer.
-            </p>
-          </div>
-
-          {/* SUBMIT BUTTON */}
-          <div className="pt-2">
-            <button
-              ref={magneticSubmitRef as any}
-              type="submit"
-              disabled={submitting}
-              className="btn-pill-44 w-full bg-primary hover:bg-primary-hover text-white text-sm font-bold shadow-md shadow-primary/25 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+        {/* TAB CARD 2: UPLOAD FILE */}
+        <div
+          onClick={() => setActiveTab("upload")}
+          className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between space-y-3 ${
+            activeTab === "upload"
+              ? "border-primary bg-card shadow-lg ring-2 ring-primary/20"
+              : "border-card-line bg-card/60 hover:border-card-line/80 hover:bg-card"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div
+              className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                activeTab === "upload" ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-card-line text-ink-2"
+              }`}
             >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Submitting to Pipeline...</span>
-                </>
-              ) : (
-                <>
-                  <span>Start Caption Processing</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
+              <Upload className="w-6 h-6" />
+            </div>
+            <span
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-pill uppercase tracking-wider font-mono ${
+                activeTab === "upload" ? "bg-primary/10 text-primary border border-primary/20" : "text-ink-3"
+              }`}
+            >
+              Direct Upload
+            </span>
           </div>
-        </form>
+
+          <div>
+            <div className="font-bold text-base text-ink">Upload Local File</div>
+            <div className="text-xs text-ink-3 mt-0.5">
+              Drag & drop any video or audio file from your device
+            </div>
+          </div>
+
+          <div className="text-[11px] font-medium text-teal flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Supports MP4, MOV, MKV, MP3, WAV up to 500 MB</span>
+          </div>
+        </div>
       </div>
+
+      {/* INPUT FORM CONTAINER */}
+      <form onSubmit={handleSubmit} className="card-torque p-6 sm:p-8 space-y-6 shadow-card">
+        {/* TAB 1 CONTENT: LINK INPUT */}
+        {activeTab === "link" && (
+          <div className="space-y-3">
+            <label className="block text-xs font-bold uppercase tracking-wider text-ink">
+              Video Stream Address
+            </label>
+            <div className="relative">
+              <input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=... or https://instagram.com/reel/..."
+                className="w-full px-4 py-3.5 rounded-xl border border-card-line bg-paper text-ink text-sm placeholder:text-ink-3 focus:outline-hidden focus:border-primary shadow-xs"
+              />
+              {url && (
+                <button
+                  type="button"
+                  onClick={() => setUrl("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-3 hover:text-ink px-2 py-1"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2 CONTENT: UPLOAD DROPZONE */}
+        {activeTab === "upload" && (
+          <div className="space-y-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*,audio/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all ${
+                isDragging
+                  ? "border-primary bg-primary/5"
+                  : selectedFile
+                  ? "border-teal bg-teal/5"
+                  : "border-card-line hover:border-primary/50 hover:bg-card-line/20"
+              }`}
+            >
+              {selectedFile ? (
+                <div className="space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-teal/15 text-teal mx-auto flex items-center justify-center">
+                    <CheckCircle2 className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <p className="text-base font-bold text-ink">{selectedFile.name}</p>
+                    <p className="text-xs text-ink-3 mt-0.5">
+                      {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • Ready for ingestion
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedFile(null);
+                    }}
+                    className="text-xs text-rose hover:underline"
+                  >
+                    Select another file
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-card-line text-ink-2 mx-auto flex items-center justify-center">
+                    <Upload className="w-7 h-7 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-base font-bold text-ink">
+                      Drag & drop your video or audio file here
+                    </p>
+                    <p className="text-xs text-ink-3 mt-1">
+                      Or click to browse from your computer (MP4, MKV, WAV, MP3)
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TARGET CAPTION LANGUAGE (4 CORE TYPES) */}
+        <div className="space-y-3 pt-4 border-t border-card-line">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <span>Primary Caption Output Language</span>
+            </label>
+            <span className="text-[10px] font-bold text-teal bg-teal/10 px-2 py-0.5 rounded-pill font-mono">
+              4 Languages Ready
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {CORE_LANGUAGES.map((item) => (
+              <button
+                key={item.code}
+                type="button"
+                onClick={() => setTargetLang(item.code)}
+                className={`p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer relative ${
+                  targetLang === item.code
+                    ? "border-primary bg-primary/10 ring-2 ring-primary/20 shadow-xs"
+                    : "border-card-line bg-card hover:bg-card-line/30"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl">{item.flag}</span>
+                  {targetLang === item.code && (
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                  )}
+                </div>
+                <div className="mt-2 font-bold text-xs text-ink">{item.label}</div>
+                <div className="text-[11px] text-ink-3">{item.sub}</div>
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-ink-3">
+            Your video will be captioned in English with timestamps and trust scores. You can toggle Hindi, German, and Dutch translations on demand.
+          </p>
+        </div>
+
+        {/* SUBMIT BUTTON */}
+        <div className="pt-2">
+          <button
+            ref={magneticSubmitRef as any}
+            type="submit"
+            disabled={submitting}
+            className="btn-pill-44 w-full bg-primary hover:bg-primary-hover text-white text-sm font-bold shadow-md shadow-primary/25 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Launching Ingestion & Transcription Pipeline...</span>
+              </>
+            ) : (
+              <>
+                <span>Generate Captions Now</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

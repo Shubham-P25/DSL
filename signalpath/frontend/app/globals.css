@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -64,11 +64,13 @@
 body {
   background-color: var(--paper);
   color: var(--ink);
-  font-family: 'Geist', 'Noto Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Geist', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   background-image: 
-    radial-gradient(at 10% 20%, rgba(194, 65, 12, 0.03) 0px, transparent 40%),
-    radial-gradient(at 90% 85%, rgba(13, 148, 136, 0.03) 0px, transparent 40%);
+    radial-gradient(at 10% 20%, rgba(194, 65, 12, 0.035) 0px, transparent 40%),
+    radial-gradient(at 90% 85%, rgba(13, 148, 136, 0.035) 0px, transparent 40%);
   background-attachment: fixed;
 }
 
@@ -78,7 +80,8 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  letter-spacing: -0.025em;
+  font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -0.028em;
 }
 
 /* Tinted pill pattern from Design.md 1.2 */
@@ -124,3 +127,15 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
 }
+
+/* Equalizer soundwave animation */
+@keyframes wave-bounce {
+  0%, 100% { height: 4px; }
+  50% { height: 18px; }
+}
+
+.animate-wave-1 { animation: wave-bounce 0.8s ease-in-out infinite; }
+.animate-wave-2 { animation: wave-bounce 0.8s ease-in-out 0.15s infinite; }
+.animate-wave-3 { animation: wave-bounce 0.8s ease-in-out 0.3s infinite; }
+.animate-wave-4 { animation: wave-bounce 0.8s ease-in-out 0.45s infinite; }
+.animate-wave-5 { animation: wave-bounce 0.8s ease-in-out 0.2s infinite; }

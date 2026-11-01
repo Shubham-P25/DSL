@@ -52,3 +52,4 @@ export function hasLexiconFailed(): boolean {
 export function getLexiconSize(): number {
   return lexiconCache ? lexiconCache.size : 0;
 }
+

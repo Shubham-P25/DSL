@@ -16,7 +16,7 @@ import {
   Sun, 
   Moon, 
   Command as CommandIcon,
-  Radio
+  BarChart3
 } from "lucide-react";
 import CommandPalette from "./CommandPalette";
 import { TORQUE_EASE } from "@/lib/motion";
@@ -24,7 +24,8 @@ import { TORQUE_EASE } from "@/lib/motion";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/new", label: "Studio", icon: Activity },
-  { href: "/ocr", label: "Image OCR", icon: FileText },
+  { href: "/dashboard#analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/ocr", label: "Document OCR", icon: FileText },
   { href: "/library", label: "Library", icon: BookOpen },
   { href: "/status", label: "Status", icon: HeartPulse },
 ];
@@ -81,11 +82,8 @@ export default function TorqueShell({ children }: { children: React.ReactNode })
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <div className="font-extrabold text-base tracking-tight leading-none text-white">
+              <div className="font-extrabold text-lg tracking-tight leading-none text-white">
                 Signal<span className="text-pill">Path</span>
-              </div>
-              <div className="text-[10px] text-ink-3 tracking-widest uppercase mt-0.5 font-bold">
-                Operator Shell
               </div>
             </div>
           </Link>
@@ -120,20 +118,9 @@ export default function TorqueShell({ children }: { children: React.ReactNode })
         </div>
 
         {/* BOTTOM SIDEBAR FOOTER */}
-        <div className="pt-4 border-t border-white/10 space-y-3">
-          <Link
-            href="/live"
-            className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs text-gray-300 transition-colors group"
-          >
-            <div className="flex items-center gap-2">
-              <Radio className="w-3.5 h-3.5 text-pill animate-pulse" />
-              <span className="font-medium">Live Mic Captions</span>
-            </div>
-            <span className="text-[10px] text-pill font-mono bg-pill/10 px-1.5 py-0.5 rounded-sm">0ms</span>
-          </Link>
-
-          <div className="px-3 text-[11px] text-gray-500 font-mono">
-            v2.1 • 4 Langs En/Hi/De/Nl
+        <div className="pt-4 border-t border-white/10 space-y-2">
+          <div className="px-3 text-[11px] text-gray-400 font-mono">
+            SignalPath • 4 Languages
           </div>
         </div>
       </aside>
@@ -221,3 +208,4 @@ export default function TorqueShell({ children }: { children: React.ReactNode })
     </div>
   );
 }
+

@@ -28,3 +28,4 @@ export function isDevanagari(text: string): boolean {
 export function isLatinToken(text: string): boolean {
   return /^[A-Za-z0-9]+$/.test(text);
 }
+
