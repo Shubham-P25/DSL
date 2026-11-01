@@ -15,8 +15,7 @@ import {
   Search, 
   Sun, 
   Moon, 
-  Command as CommandIcon,
-  BarChart3
+  Command as CommandIcon
 } from "lucide-react";
 import CommandPalette from "./CommandPalette";
 import { TORQUE_EASE } from "@/lib/motion";
@@ -24,7 +23,6 @@ import { TORQUE_EASE } from "@/lib/motion";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/new", label: "Studio", icon: Activity },
-  { href: "/dashboard#analytics", label: "Analytics", icon: BarChart3 },
   { href: "/ocr", label: "Document OCR", icon: FileText },
   { href: "/library", label: "Library", icon: BookOpen },
   { href: "/status", label: "Status", icon: HeartPulse },

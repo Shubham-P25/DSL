@@ -58,8 +58,8 @@ export default function StatusPage() {
     {
       name: "FFmpeg Binary",
       ok: health?.ffmpeg === true,
-      val: health?.ffmpeg ? "Available" : "Missing",
-      desc: "16 kHz mono WAV resampler",
+      val: health?.ffmpeg ? (health?.ffmpeg_binary || "Available") : "Missing",
+      desc: "16 kHz mono WAV resampler (PyAV + FFmpeg)",
     },
     {
       name: "JavaScript Runtime",

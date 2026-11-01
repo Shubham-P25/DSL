@@ -9,6 +9,7 @@ from pathlib import Path
 import yt_dlp
 from app.core.config import settings
 from app.core.errors import AppError
+from app.ingest.audio import ffmpeg_path
 from app.ingest.captions_fallback import fetch_caption_segments
 from app.ingest.urls import is_youtube, youtube_id
 from app.ingest.ytdlp_opts import attempts_for, base_opts
@@ -56,8 +57,9 @@ def _guard(info: dict) -> None:
 
 
 def to_wav(src: Path, dst: Path) -> None:
+    exe = ffmpeg_path() or settings.ffmpeg_path
     try:
-        subprocess.run([settings.ffmpeg_path, "-y", "-nostdin", "-loglevel", "error", "-i", str(src),
+        subprocess.run([exe, "-y", "-nostdin", "-loglevel", "error", "-i", str(src),
                         "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(dst)],
                        check=True, capture_output=True, timeout=900)
     except FileNotFoundError as exc:
