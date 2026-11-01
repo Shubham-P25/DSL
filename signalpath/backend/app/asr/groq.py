@@ -75,3 +75,4 @@ def transcribe(audio: np.ndarray, lang: str, on_seg, cancel) -> None:
                 compression_ratio=s.get("compression_ratio"),
             )
             on_seg(seg, min(s_end / (total_len / 16000.0), 1.0))
+

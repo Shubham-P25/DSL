@@ -122,3 +122,4 @@ class YouTubeAdapter:
             "Add cookies.txt or upload the audio/video file directly.",
             http_status=422,
         )
+

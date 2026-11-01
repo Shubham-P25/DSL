@@ -57,15 +57,9 @@ export default function JobDetailPage() {
 
   const [languagesList, setLanguagesList] = useState<Array<{ code: string; name: string; native: string; flag: string }>>([
     { code: "en", name: "English", native: "English", flag: "🇬🇧" },
-    { code: "hi", name: "Hindi", native: "हिंदी", flag: "🇮🇳" },
-    { code: "mr", name: "Marathi", native: "मराठी", flag: "🚩" },
-    { code: "pa", name: "Punjabi", native: "ਪੰਜਾਬੀ", flag: "ੴ" },
-    { code: "ta", name: "Tamil", native: "தமிழ்", flag: "🏛️" },
-    { code: "kn", name: "Kannada", native: "ಕನ್ನಡ", flag: "🌸" },
-    { code: "ru", name: "Russian", native: "Русский", flag: "🇷🇺" },
+    { code: "hi", name: "Hindi", native: "हिन्दी", flag: "🇮🇳" },
     { code: "de", name: "German", native: "Deutsch", flag: "🇩🇪" },
-    { code: "ja", name: "Japanese", native: "日本語", flag: "🇯🇵" },
-    { code: "zh", name: "Chinese", native: "中文", flag: "🇨🇳" },
+    { code: "nl", name: "Dutch", native: "Nederlands", flag: "🇳🇱" },
   ]);
 
   const targetLangCode = (job?.target_langs && job.target_langs[0]) || "en";
@@ -119,7 +113,7 @@ export default function JobDetailPage() {
             code: l.code,
             name: l.name,
             native: l.native,
-            flag: l.code === "en" ? "🇬🇧" : l.code === "hi" ? "🇮🇳" : l.code === "mr" ? "🚩" : l.code === "pa" ? "ੴ" : l.code === "ta" ? "🏛️" : l.code === "kn" ? "🌸" : l.code === "ru" ? "🇷🇺" : l.code === "de" ? "🇩🇪" : l.code === "ja" ? "🇯🇵" : l.code === "zh" ? "🇨🇳" : "🌐",
+            flag: l.code === "en" ? "🇬🇧" : l.code === "hi" ? "🇮🇳" : l.code === "de" ? "🇩🇪" : l.code === "nl" ? "🇳🇱" : "🌐",
           })));
         }
       })

@@ -91,3 +91,4 @@ def cap_segment(seg) -> None:
         if "hallucination_risk" not in w.flags:
             w.flags.append("hallucination_risk")
     seg.acc = min(seg.acc or 0.40, 0.40)
+

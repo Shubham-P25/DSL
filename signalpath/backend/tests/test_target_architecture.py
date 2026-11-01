@@ -11,16 +11,7 @@ from app.verify.scorer import word_accuracy, flags, bucket, segment_accuracy, ha
 
 
 def test_language_registry_contracts():
-    assert "en" in LANGS
-    assert "hi" in LANGS
-    assert "mr" in LANGS
-    assert "pa" in LANGS
-    assert "ta" in LANGS
-    assert "kn" in LANGS
-    assert "ru" in LANGS
-    assert "de" in LANGS
-    assert "ja" in LANGS
-    assert "zh" in LANGS
+    assert set(LANGS.keys()) == {"en", "hi", "de", "nl"}
 
     # get() raises KeyError on unsupported languages rather than falling back to en
     with pytest.raises(KeyError):
@@ -30,8 +21,8 @@ def test_language_registry_contracts():
 def test_script_ratio_accuracy():
     assert script_ratio("Hello World", "en") == 1.0
     assert script_ratio("नमस्ते भारत", "hi") == 1.0
-    assert script_ratio("शुभ सकाळ", "mr") == 1.0
-    assert script_ratio("வணக்கம்", "ta") == 1.0
+    assert script_ratio("Guten Tag", "de") == 1.0
+    assert script_ratio("Goedendag", "nl") == 1.0
     assert script_ratio("Hello World", "hi") == 0.0
 
 
@@ -74,3 +65,4 @@ def test_ffmpeg_fallback_finds_bundled_binary():
     path = ffmpeg_path()
     assert path is not None
     assert "ffmpeg" in path.lower()
+

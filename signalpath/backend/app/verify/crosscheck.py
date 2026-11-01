@@ -87,3 +87,4 @@ def second_opinion(media, seg, lang: str) -> list[str] | None:
             pass
 
     return None
+

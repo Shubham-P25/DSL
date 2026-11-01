@@ -63,3 +63,4 @@ class ASRProvider(Protocol):
         cancel,
     ) -> None:
         ...
+

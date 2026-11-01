@@ -70,13 +70,13 @@ async function request<T>(path: string, getToken: GetToken, init: RequestInit = 
   return result as T;
 }
 
-export const createJob = (g: GetToken, url: string, sourceLang = "auto", correct = true, targetLang = "en") =>
+export const createJob = (g: GetToken, url: string, sourceLang = "en", correct = true, targetLang = "en") =>
   request<{ job_id: string; cached: boolean }>("/jobs", g, {
     method: "POST",
     body: JSON.stringify({ url, source_lang: sourceLang, correct, target_lang: targetLang })
   });
 
-export const uploadJob = (g: GetToken, file: File, sourceLang = "auto", correct = true, targetLang = "en") => {
+export const uploadJob = (g: GetToken, file: File, sourceLang = "en", correct = true, targetLang = "en") => {
   const form = new FormData();
   form.append("file", file);
   form.append("source_lang", sourceLang);

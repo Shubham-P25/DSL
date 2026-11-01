@@ -25,7 +25,7 @@ JOB_EXCLUDE = {"cache_key", "timings"}
 
 class JobCreate(BaseModel):
     url: str
-    source_lang: str = "auto"
+    source_lang: str = "en"
     target_lang: str = "en"
     correct: bool = True
 
@@ -71,7 +71,7 @@ def create_job(body: JobCreate, user: str = Depends(current_user), session: Sess
 
 
 @router.post("/upload", status_code=202)
-async def create_upload(file: UploadFile = File(...), source_lang: str = Form("auto"), target_lang: str = Form("en"), correct: bool = Form(True),
+async def create_upload(file: UploadFile = File(...), source_lang: str = Form("en"), target_lang: str = Form("en"), correct: bool = Form(True),
                         user: str = Depends(current_user), session: Session = Depends(get_session)) -> dict:
     target = target_lang or "en"
     if target not in LANGS:

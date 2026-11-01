@@ -63,3 +63,4 @@ def run_llm_audit(risky_segs: list, lang: str) -> None:
                             w.alt = sug.strip()
     except Exception as exc:
         log.debug("LLM word audit failed (non-fatal): %s", exc)
+

@@ -23,3 +23,4 @@ def test_no_hardcoded_languages_in_app():
                 offending.append(f"{path.relative_to(APP_DIR)}:{idx} -> {line.strip()}")
 
     assert not offending, f"Found hard-coded languages outside registry.py:\n" + "\n".join(offending)
+

@@ -279,3 +279,4 @@ def run_job(job_id: str, upload_path: str | None = None) -> None:
         fail(job_id, AppError("INTERNAL", "Something went wrong.", str(e)[:200]), warnings)
     finally:
         cleanup(job_id, upload_path)
+

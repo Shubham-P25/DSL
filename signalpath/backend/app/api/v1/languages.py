@@ -17,3 +17,4 @@ def list_languages() -> list[dict]:
         }
         for l in LANGS.values()
     ]
+

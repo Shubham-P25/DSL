@@ -59,3 +59,4 @@ def transcribe(audio: np.ndarray, lang: str, on_seg, cancel) -> None:
             wav_path.unlink(missing_ok=True)
         except Exception:
             pass
+

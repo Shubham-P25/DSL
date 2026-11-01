@@ -27,3 +27,4 @@ class PlatformAdapter(Protocol):
 
     def fetch(self, url: str, cancel, warnings: list[str]) -> MediaResult:
         ...
+

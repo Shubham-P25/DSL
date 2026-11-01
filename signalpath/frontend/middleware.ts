@@ -4,7 +4,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 const pubKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
 const isPlaceholder = !pubKey || pubKey.includes("xxx") || pubKey.includes("Y2xlcmsuZXhhbXBsZS5jb20k") || pubKey.includes("example.com");
 
-const isPublic = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)", "/status"]);
+const isPublic = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)", "/status", "/live(.*)"]);
 
 export default isPlaceholder
   ? () => NextResponse.next()

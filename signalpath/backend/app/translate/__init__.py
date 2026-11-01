@@ -11,3 +11,4 @@ __all__ = [
     "translate_segments_multilingual",
     "translate_text_semantic",
 ]
+

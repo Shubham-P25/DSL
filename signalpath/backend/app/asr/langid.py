@@ -47,3 +47,4 @@ def detect(model, audio, forced: str | None) -> tuple[str, float, list[str]]:
         else []
     )
     return best, round(conf, 3), warn
+

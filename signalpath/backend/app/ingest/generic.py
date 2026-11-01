@@ -64,3 +64,4 @@ class GenericAdapter:
             "Site blocked download or requires credentials: add cookies.txt or upload the file directly.",
             http_status=422,
         )
+

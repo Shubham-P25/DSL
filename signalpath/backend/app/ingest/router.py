@@ -94,3 +94,4 @@ def fetch(job, upload_path: str | Path | None = None, cancel=None, progress=None
     if progress:
         progress(1.0)
     return media
+

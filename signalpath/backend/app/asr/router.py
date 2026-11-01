@@ -87,3 +87,4 @@ def run_asr(media, lang_choice: str, on_seg, cancel, warnings: list[str]) -> tup
         "Pick the spoken language manually or upload the file.",
         http_status=422,
     )
+

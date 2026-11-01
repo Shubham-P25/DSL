@@ -39,3 +39,4 @@ def s_lexicon(w, lang: str, glossary: set[str]) -> float | None:
         return min(freq / 4.0, 1.0)  # Zipf >= 4 counts as common word
     except Exception:
         return None
+

@@ -65,3 +65,4 @@ class InstagramAdapter:
             "Instagram asked for login: add cookies.txt or upload the file.",
             http_status=422,
         )
+

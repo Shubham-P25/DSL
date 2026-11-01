@@ -23,3 +23,4 @@ def ffmpeg_path() -> str | None:
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception:
         return None
+

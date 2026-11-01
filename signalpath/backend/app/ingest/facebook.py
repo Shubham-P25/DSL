@@ -65,3 +65,4 @@ class FacebookAdapter:
             "Facebook post requires login: add cookies.txt or upload the file.",
             http_status=422,
         )
+
