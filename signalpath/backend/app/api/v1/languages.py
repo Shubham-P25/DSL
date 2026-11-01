@@ -14,6 +14,7 @@ def list_languages() -> list[dict]:
             "native": l.native,
             "font": l.font,
             "tokenize": l.tokenize,
+            "flag": l.flag,
         }
         for l in LANGS.values()
     ]

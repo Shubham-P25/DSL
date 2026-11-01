@@ -17,6 +17,7 @@ from app.langs.registry import LANGS
 from app.models_db.tables import Job, Segment
 from app.pipeline import runner
 from app.pipeline.ingest.upload import save_upload
+from app.translate import service as translate_service
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 SEG_FIELDS = {"id", "idx", "start", "end", "text", "final_text", "correction", "correction_status", "trust_score", "trust_bucket", "human_edited", "translations", "words"}
@@ -47,6 +48,15 @@ def _owned(session: Session, job_id: str, user: str) -> Job:
 
 def _segments(session: Session, job_id: str) -> list[Segment]:
     return list(session.exec(select(Segment).where(Segment.job_id == job_id).order_by(Segment.idx)).all())
+
+
+def _ready_langs(rows: list[tuple]) -> list[str]:
+    """rows = [(final_text, text, translations)]. A language is ready only when EVERY non-empty cue has it."""
+    need = [(t or {}) for f, x, t in rows if (f or x or "").strip()]
+    if not need:
+        return []
+    langs = set().union(*[set(t.keys()) for t in need])
+    return sorted(l for l in langs if all((t.get(l) or {}).get("text") for t in need))
 
 
 @router.post("", status_code=202)
@@ -98,16 +108,18 @@ def list_jobs(user: str = Depends(current_user), session: Session = Depends(get_
 @router.get("/{job_id}")
 def get_job(job_id: str, user: str = Depends(current_user), session: Session = Depends(get_session)) -> dict:
     job = _owned(session, job_id, user)
-    segs = []
-    ready_langs = set()
+    segs, rows = [], []
     for s in _segments(session, job_id):
         d = s.model_dump(include=SEG_FIELDS)
         d["acc"] = s.trust_score
         segs.append(d)
-        if s.translations:
-            ready_langs.update(s.translations.keys())
+        rows.append((s.final_text, s.text, s.translations))
     job_dict = job.model_dump(exclude=JOB_EXCLUDE)
-    job_dict["translations_ready"] = sorted(list(ready_langs))
+    ready = set(_ready_langs(rows))
+    if job.source_lang in LANGS:
+        ready.add(job.source_lang)              # the spoken language needs no translation
+    job_dict["translations_ready"] = sorted(ready)
+    job_dict["translation_status"] = translate_service.job_statuses(job_id)
     return {"job": job_dict, "segments": segs}
 
 
@@ -118,6 +130,8 @@ def edit_segment(job_id: str, segment_id: int, body: SegmentEdit, user: str = De
     if not segment or segment.job_id != job_id:
         raise AppError("NOT_FOUND", "Caption not found.", http_status=404)
     segment.final_text, segment.human_edited = body.text.strip(), True
+    segment.translations = {}                  # stale once the source text changes
+    translate_service.invalidate(job_id)       # lets the UI re-translate the active language
     session.add(segment)
     session.commit()
     return segment.model_dump(include=SEG_FIELDS)
@@ -135,20 +149,30 @@ def delete_job(job_id: str, user: str = Depends(current_user), session: Session 
 
 
 @router.post("/{job_id}/translate", status_code=202)
-def request_translation(
-    job_id: str,
-    body: TranslateRequest,
-    user: str = Depends(current_user),
-    session: Session = Depends(get_session),
-) -> dict:
+def request_translation(job_id: str, body: TranslateRequest, user: str = Depends(current_user),
+                        session: Session = Depends(get_session)) -> dict:
     job = _owned(session, job_id, user)
     if job.status != "done":
         raise AppError("NOT_READY", "Captions are not finished yet.", http_status=409)
     if body.lang not in LANGS:
         raise AppError("LANG_UNSUPPORTED", f"Language '{body.lang}' is not supported.", http_status=400)
-    from app.translate.service import enqueue
-    enqueue(job_id, body.lang)
-    return {"status": "enqueued", "job_id": job_id, "lang": body.lang}
+    st = translate_service.enqueue(job_id, body.lang)
+    return {"job_id": job_id, "lang": body.lang, "status": st.get("state"), "done": st.get("done", 0),
+            "total": st.get("total", 0), "error": st.get("error")}
+
+
+@router.get("/{job_id}/translate/{lang}")
+def translation_status(job_id: str, lang: str, user: str = Depends(current_user),
+                       session: Session = Depends(get_session)) -> dict:
+    job = _owned(session, job_id, user)
+    if lang not in LANGS:
+        raise AppError("LANG_UNSUPPORTED", f"Language '{lang}' is not supported.", http_status=400)
+    rows = session.exec(select(Segment.final_text, Segment.text, Segment.translations)
+                        .where(Segment.job_id == job_id)).all()
+    ready = lang == job.source_lang or lang in _ready_langs([tuple(r) for r in rows])
+    st = translate_service.get_status(job_id, lang) or {"state": "idle", "done": 0, "total": 0, "error": None}
+    return {"state": "done" if ready else st["state"], "done": st.get("done", 0), "total": st.get("total", 0),
+            "error": None if ready else st.get("error"), "ready": ready}
 
 
 @router.get("/{job_id}/export")
@@ -159,11 +183,17 @@ def export_job(job_id: str, format: str = "srt", lang: str = "en", variant: str 
         raise AppError("NOT_READY", "Captions are not finished yet.", "Wait until the job is done.", 409)
     if format not in {"srt", "vtt", "txt", "json"}:
         raise AppError("VALIDATION", "Unsupported format.", "Use srt, vtt or txt.", 422)
+    src = (job.source_lang or "en").lower()
+    if lang != src:
+        rows = [(s.final_text, s.text, s.translations) for s in _segments(session, job_id)]
+        if lang not in _ready_langs(rows):
+            raise AppError("TRANSLATION_NOT_READY", f"{lang} captions are not finished yet.",
+                           "Pick the language in the viewer first and wait for it to finish.", 409)
     segments = [s.model_dump(include=SEG_FIELDS | {"words"}) for s in _segments(session, job_id)]
-    body, media_type = render_export(segments, format, lang, variant, mark_low_trust)
+    body, media_type = render_export(segments, format, lang, variant, mark_low_trust, source_lang=src)
     if bom:
         body = "\ufeff" + body
     name = re.sub(r"[^A-Za-z0-9_-]+", "_", (job.title or "signalpath")[:60]).strip("_") or "signalpath"
-    filename = f"{name}_{lang}.{format}" if lang != "en" else f"{name}.{format}"
+    filename = f"{name}_{lang}.{format}" if lang != src else f"{name}.{format}"
     return Response(body.encode("utf-8"), media_type=f"{media_type}; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})

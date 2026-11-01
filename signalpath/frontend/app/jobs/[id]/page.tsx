@@ -10,6 +10,8 @@ import {
   editSegment, 
   downloadExport, 
   requestTranslation,
+  getTranslationStatus,
+  TranslationStatus,
   getLanguages,
   Job, 
   Segment, 
@@ -54,6 +56,11 @@ export default function JobDetailPage() {
   const [exportLang, setExportLang] = useState<string>("en");
   const [viewMode, setViewMode] = useState<"single" | "sideBySide">("single");
   const [translatingLang, setTranslatingLang] = useState<string | null>(null);
+  const [transError, setTransError] = useState<string | null>(null);
+  const [transProgress, setTransProgress] = useState<Record<string, { done: number; total: number }>>({});
+  const pollers = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const langInit = useRef(false);
+  const handleSelectLangRef = useRef<(c: string) => void>(undefined);
 
   const [languagesList, setLanguagesList] = useState<Array<{ code: string; name: string; native: string; flag: string }>>([
     { code: "en", name: "English", native: "English", flag: "🇬🇧" },
@@ -62,8 +69,8 @@ export default function JobDetailPage() {
     { code: "nl", name: "Dutch", native: "Nederlands", flag: "🇳🇱" },
   ]);
 
-  const targetLangCode = (job?.target_langs && job.target_langs[0]) || "en";
-  const sourceLangCode = (job?.source_lang && job.source_lang !== "auto") ? job.source_lang : "en";
+  const sourceLang = (job?.source_lang && job.source_lang !== "auto" ? job.source_lang : "en").toLowerCase();
+  const isReady = (code: string) => code === sourceLang || (job?.translations_ready ?? []).includes(code);
   const availableLanguages = languagesList;
 
   // Filter & editing
@@ -89,10 +96,16 @@ export default function JobDetailPage() {
         setSegments(data.segments);
         setLoading(false);
 
-        if (data.job?.target_langs && data.job.target_langs[0]) {
-          const tLang = data.job.target_langs[0] as string;
-          setSelectedLang((prev) => (prev === "en" ? tLang : prev));
-          setExportLang((prev) => (prev === "en" ? tLang : prev));
+        if (!langInit.current && data.job.status === "done") {
+          langInit.current = true;
+          const t = (data.job.target_langs?.[0] ?? "en") as string;
+          setSelectedLang(t);
+          setExportLang(t);
+          const spoken = (data.job.source_lang && data.job.source_lang !== "auto" ? data.job.source_lang : "en").toLowerCase();
+          if (t !== spoken && !(data.job.translations_ready ?? []).includes(t)) {
+            // fall through to the handler below once it is defined
+            setTimeout(() => handleSelectLangRef.current?.(t), 0);
+          }
         }
 
         if (data.job.status !== "done" && data.job.status !== "error" && data.job.status !== "cancelled") {
@@ -125,56 +138,49 @@ export default function JobDetailPage() {
     };
   }, [id, getToken]);
 
-  const handleSelectLang = async (langCode: string) => {
-    setSelectedLang(langCode);
-    setExportLang(langCode);
-    if (viewMode === "sideBySide") setViewMode("single");
-
-    const isSource = langCode === (job?.source_lang || "en");
-    if (isSource) {
-      setTranslatingLang(null);
-      return;
-    }
-
-    // If translations already present in client segment state, switch instantly
-    const hasTranslationInSegments = segments.some((s) => s.translations?.[langCode]?.text);
-    if (hasTranslationInSegments) {
-      setTranslatingLang(null);
-      return;
-    }
-
-    if (id && job?.status === "done") {
-      setTranslatingLang(langCode);
+  const startPolling = (lang: string) => {
+    if (!id || pollers.current[lang]) return;
+    const startedAt = Date.now();
+    pollers.current[lang] = setInterval(async () => {
       try {
-        await requestTranslation(getToken, id, langCode);
-      } catch (err) {
-        console.warn("Could not request translation:", err);
-      }
-
-      // Fast polling loop: check every 350ms until translation is ready
-      let attempts = 0;
-      const pollTimer = setInterval(async () => {
-        attempts++;
-        try {
-          const data = await getJob(getToken, id);
-          const ready =
-            data.job?.translations_ready?.includes(langCode) ||
-            data.segments.some((s) => s.translations?.[langCode]?.text);
-          if (ready || attempts > 20) {
-            clearInterval(pollTimer);
+        const st: TranslationStatus = await getTranslationStatus(getToken, id, lang);
+        setTransProgress((p) => ({ ...p, [lang]: { done: st.done, total: st.total } }));
+        const timedOut = Date.now() - startedAt > 180_000;
+        if (st.ready || st.state === "failed" || timedOut) {
+          clearInterval(pollers.current[lang]);
+          delete pollers.current[lang];
+          if (st.ready) {
+            const data = await getJob(getToken, id);      // one full refresh, only when complete
             setJob(data.job);
             setSegments(data.segments);
-            setTranslatingLang(null);
+          } else {
+            setTransError(st.error || "Translation timed out. Please retry.");
           }
-        } catch {
-          if (attempts > 12) {
-            clearInterval(pollTimer);
-            setTranslatingLang(null);
-          }
+          setTranslatingLang((cur) => (cur === lang ? null : cur));
         }
-      }, 350);
+      } catch {
+        /* transient network error: keep polling */
+      }
+    }, 700);
+  };
+
+  useEffect(() => () => { Object.values(pollers.current).forEach(clearInterval); }, []);
+
+  const handleSelectLang = async (code: string) => {
+    setSelectedLang(code);
+    setExportLang(code);
+    setTransError(null);
+    if (!id || job?.status !== "done" || isReady(code)) return;
+    setTranslatingLang(code);
+    try {
+      await requestTranslation(getToken, id, code);      // idempotent on the server
+      startPolling(code);
+    } catch (e: any) {
+      setTransError(e?.message ?? "Could not start translation.");
+      setTranslatingLang(null);
     }
   };
+  handleSelectLangRef.current = handleSelectLang;
 
   const handleExport = async (format: "srt" | "vtt" | "txt") => {
     if (!job) return;
@@ -202,8 +208,10 @@ export default function JobDetailPage() {
     setSavingEdit(true);
     try {
       const updated = await editSegment(getToken, job.id, segId, editText);
-      setSegments((prev) => prev.map((s) => (s.id === segId ? { ...s, ...updated } : s)));
+      setSegments((prev) => prev.map((s) => (s.id === segId ? { ...s, ...updated, translations: {} } : s)));
+      setJob((j) => (j ? { ...j, translations_ready: (j.translations_ready ?? []).filter((c) => c === sourceLang) } : j));
       setEditingSegId(null);
+      if (selectedLang !== sourceLang) handleSelectLang(selectedLang);
     } catch (err: any) {
       alert(err.message || "Failed to save caption edit.");
     } finally {
@@ -222,6 +230,7 @@ export default function JobDetailPage() {
     { key: "fetching_audio", label: "Fetching Audio" },
     { key: "transcribing", label: "Transcribing" },
     { key: "correcting", label: "Correcting" },
+    { key: "verifying", label: "Verifying" },
     { key: "done", label: "Complete" },
   ];
 
@@ -230,83 +239,16 @@ export default function JobDetailPage() {
       case "fetching_audio": return 0;
       case "transcribing": return 1;
       case "correcting": return 2;
-      case "done": return 3;
+      case "verifying": return 3;
+      case "done": return 4;
       default: return 0;
     }
-  };
-
-  // Coalesce fragmented or single-word segments into natural sentences
-  const coalesceDisplaySegments = (segs: Segment[]): Segment[] => {
-    if (!segs || segs.length === 0) return [];
-    const wordsTotal = segs.reduce(
-      (acc, s) => acc + (s.final_text || s.text || "").trim().split(/\s+/).filter(Boolean).length,
-      0
-    );
-    const avgWords = wordsTotal / segs.length;
-    if (avgWords > 3) {
-      return segs; // Already natural sentences
-    }
-
-    const out: Segment[] = [];
-    let curr = { ...segs[0] };
-    let currTexts = [(curr.final_text || curr.text || "").trim()];
-    let currWords = [...(curr.words || [])];
-
-    for (let i = 1; i < segs.length; i++) {
-      const nextSeg = segs[i];
-      const nextText = (nextSeg.final_text || nextSeg.text || "").trim();
-      const candText = [...currTexts, nextText].join(" ");
-      const wCount = candText.split(/\s+/).filter(Boolean).length;
-      const dur = nextSeg.end - curr.start;
-      const gap = nextSeg.start - curr.end;
-      const endsSentence = Boolean(currTexts[currTexts.length - 1].match(/[.!?।]$/));
-
-      if (endsSentence || gap > 1.2 || wCount > 10 || dur > 4.5) {
-        out.push({
-          ...curr,
-          final_text: currTexts.join(" "),
-          text: currTexts.join(" "),
-          words: currWords,
-        });
-        curr = { ...nextSeg };
-        currTexts = [nextText];
-        currWords = [...(nextSeg.words || [])];
-      } else {
-        curr.end = Math.max(curr.end, nextSeg.end);
-        currTexts.push(nextText);
-        if (nextSeg.words) currWords.push(...nextSeg.words);
-        if (nextSeg.translations) {
-          curr.translations = curr.translations || {};
-          for (const [l, tObj] of Object.entries(nextSeg.translations)) {
-            if (!curr.translations[l]) {
-              curr.translations[l] = { ...tObj };
-            } else {
-              curr.translations[l] = {
-                ...curr.translations[l],
-                text: `${curr.translations[l].text} ${tObj.text}`,
-              };
-            }
-          }
-        }
-      }
-    }
-
-    if (currTexts.length > 0) {
-      out.push({
-        ...curr,
-        final_text: currTexts.join(" "),
-        text: currTexts.join(" "),
-        words: currWords,
-      });
-    }
-
-    return out;
   };
 
   const rawSegments = filterLowTrustOnly
     ? segments.filter((s) => s.trust_bucket !== "green")
     : segments;
-  const displayedSegments = coalesceDisplaySegments(rawSegments);
+  const displayedSegments = rawSegments;
 
   if (loading && !job) {
     return (
@@ -414,7 +356,7 @@ export default function JobDetailPage() {
               />
             </div>
 
-            <div className="grid grid-cols-4 gap-2 pt-2">
+            <div className="grid grid-cols-5 gap-2 pt-2">
               {stages.map((stg, i) => {
                 const isPassed = currentStageIdx > i;
                 const isCurrent = currentStageIdx === i;
@@ -472,7 +414,7 @@ export default function JobDetailPage() {
                         : "bg-rose-500/15 text-rose-400 border border-rose-500/20"
                     }`}
                   >
-                    {Math.round((seg.trust_score || 0.8) * 100)}%
+                    {seg.trust_score == null ? "—" : Math.round(seg.trust_score * 100) + "%"}
                   </span>
                 </motion.div>
               ))}
@@ -665,23 +607,29 @@ export default function JobDetailPage() {
                 {/* Language Switcher */}
                 <div className="flex items-center gap-1 bg-paper border border-card-line p-1 rounded-xl flex-wrap">
                   {availableLanguages.slice(0, 6).map((l) => {
-                    const isReady = job?.translations_ready?.includes(l.code) || l.code === (job?.source_lang || "en");
-                    const isTranslating = translatingLang === l.code && !isReady;
+                    const ready = isReady(l.code);
+                    const busy = translatingLang === l.code && !ready;
+                    const prog = transProgress[l.code];
                     return (
                       <button
                         key={l.code}
                         type="button"
                         onClick={() => handleSelectLang(l.code)}
                         className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                          selectedLang === l.code && viewMode === "single"
+                          selectedLang === l.code
                             ? "bg-primary text-white shadow-xs"
                             : "text-ink-2 hover:text-ink hover:bg-card-line/30"
                         }`}
                       >
                         <span>{l.flag} {l.native}</span>
-                        {isTranslating && <Loader2 className="w-2.5 h-2.5 animate-spin text-white" />}
-                        {!isReady && l.code !== (job?.source_lang || "en") && !isTranslating && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Click for instant translation" />
+                        {busy && (
+                          <span className="flex items-center gap-1 text-[10px]">
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                            {prog?.total ? `${prog.done}/${prog.total}` : ""}
+                          </span>
+                        )}
+                        {!ready && !busy && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Click to translate" />
                         )}
                       </button>
                     );
@@ -702,7 +650,14 @@ export default function JobDetailPage() {
                   {availableLanguages.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => setViewMode(viewMode === "single" ? "sideBySide" : "single")}
+                      onClick={() => {
+                        const next = viewMode === "single" ? "sideBySide" : "single";
+                        setViewMode(next);
+                        if (next === "sideBySide" && selectedLang === sourceLang) {
+                          const other = availableLanguages.find((l) => l.code !== sourceLang);
+                          if (other) handleSelectLang(other.code);
+                        }
+                      }}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                         viewMode === "sideBySide"
                           ? "bg-primary text-white border-primary shadow-xs"
@@ -729,6 +684,13 @@ export default function JobDetailPage() {
               </div>
             </div>
 
+            {transError && (
+              <div className="px-4 py-2 text-xs text-rose-600 bg-rose-500/10 border-b border-card-line flex items-center justify-between">
+                <span>{transError}</span>
+                <button type="button" className="font-bold underline cursor-pointer" onClick={() => handleSelectLang(selectedLang)}>Retry</button>
+              </div>
+            )}
+
             {/* ROWS */}
             <div className="divide-y divide-card-line max-h-[75vh] overflow-y-auto bg-card">
               {displayedSegments.map((seg) => {
@@ -736,9 +698,11 @@ export default function JobDetailPage() {
                 const isCorrected = Boolean(seg.correction);
                 const showOriginal = revealedOriginals[seg.id];
 
-                const sourceLang = (job?.source_lang && job.source_lang !== "auto" ? job.source_lang : "en").toLowerCase();
-                const nativeSpokenText = seg.translations?.[sourceLang]?.text || seg.text;
-                const currentText = seg.translations?.[selectedLang]?.text || (selectedLang === sourceLang ? nativeSpokenText : (seg.final_text || seg.text));
+                const nativeText = seg.final_text || seg.text;
+                const isSourceView = selectedLang === sourceLang;
+                const translated = seg.translations?.[selectedLang]?.text;
+                const pending = !isSourceView && !translated;
+                const currentText = isSourceView ? nativeText : translated;
 
                 return (
                   <div
@@ -752,7 +716,7 @@ export default function JobDetailPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {selectedLang !== "en" && (
+                        {!isSourceView && (
                           <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold border border-primary/20">
                             {availableLanguages.find((l) => l.code === selectedLang)?.native}
                           </span>
@@ -794,7 +758,7 @@ export default function JobDetailPage() {
                               : "bg-rose-500/15 text-rose-400 border border-rose-500/20"
                           }`}
                         >
-                          {Math.round((seg.trust_score || 0.8) * 100)}%
+                          {seg.trust_score == null ? "—" : Math.round(seg.trust_score * 100) + "%"}
                         </span>
                       </div>
                     </div>
@@ -835,14 +799,20 @@ export default function JobDetailPage() {
                           <span className="text-[10px] uppercase font-bold text-ink-3 bg-paper border border-card-line px-1.5 py-0.5 rounded-sm">
                             {availableLanguages.find((l) => l.code === sourceLang)?.native || "Original"}
                           </span>
-                          <span>{nativeSpokenText}</span>
+                          <span>{nativeText}</span>
                         </div>
                         <div className="text-sm font-semibold text-ink bg-primary/5 border border-primary/20 p-2.5 rounded-xl flex items-start justify-between gap-2">
                           <div>
                             <span className="text-[10px] uppercase font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-sm mr-2">
                               {availableLanguages.find((l) => l.code === selectedLang)?.native || selectedLang}
                             </span>
-                            <span>{currentText}</span>
+                            {isSourceView ? (
+                              <span className="text-ink-3 font-normal italic">Pick a second language</span>
+                            ) : pending ? (
+                              <span className="animate-pulse text-ink-3">Translating…</span>
+                            ) : (
+                              <span>{currentText}</span>
+                            )}
                           </div>
                           <Edit3
                             onClick={() => handleStartEdit(seg)}
@@ -852,7 +822,7 @@ export default function JobDetailPage() {
                       </div>
                     ) : (
                       <div className="text-sm font-medium text-ink space-y-1.5">
-                        {seg.words && seg.words.length > 0 && (selectedLang === sourceLang || !seg.translations?.[selectedLang]?.text) ? (
+                        {seg.words && seg.words.length > 0 && isSourceView ? (
                           <div className="flex flex-wrap gap-1.5 items-center">
                             {seg.words.map((w, wIdx) => {
                               const wordText = w.t || w.text || "";
@@ -900,16 +870,24 @@ export default function JobDetailPage() {
                           </div>
                         ) : (
                           <div
-                            onClick={() => handleStartEdit(seg)}
+                            onClick={() => !pending && handleStartEdit(seg)}
                             className="cursor-pointer hover:text-primary transition-colors flex items-start justify-between gap-3"
                           >
-                            <span>{currentText}</span>
+                            {pending ? (
+                              <div className="h-4 w-2/3 rounded bg-card-line/40 animate-pulse" />
+                            ) : (
+                              <span>{currentText}</span>
+                            )}
                             <Edit3 className="w-3.5 h-3.5 text-ink-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
                           </div>
                         )}
-                        {selectedLang !== sourceLang && currentText && (
+                        {!isSourceView && (
                           <div className="text-[11px] text-primary font-medium">
-                            {availableLanguages.find((l) => l.code === selectedLang)?.native || selectedLang} Caption
+                            {pending ? (
+                              <span className="animate-pulse text-ink-3">Translating…</span>
+                            ) : (
+                              `${availableLanguages.find((l) => l.code === selectedLang)?.native || selectedLang} Caption`
+                            )}
                           </div>
                         )}
                       </div>

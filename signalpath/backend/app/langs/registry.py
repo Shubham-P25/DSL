@@ -21,6 +21,7 @@ class Lang:
     wordfreq: str | None    # wordfreq code, None = lexicon signal unavailable
     tokenize: str = "space" # "space" | "char"
     font: str = "Noto Sans"
+    flag: str = "🌐"
 
 
 _LAT, _DEV = r"[A-Za-z\u00C0-\u024F]", r"[\u0900-\u097F]"
@@ -32,10 +33,10 @@ def _wf(code: str | None) -> str | None:
 
 LANGS: dict[str, Lang] = {
     l.code: l for l in [
-        Lang("en", "English", "English", _LAT, "en", "en", _wf("en")),
-        Lang("hi", "Hindi",   "हिन्दी",    _DEV, "hi", "hi", _wf("hi"), font="Noto Sans Devanagari"),
-        Lang("de", "German",  "Deutsch", _LAT, "de", "de", _wf("de")),
-        Lang("nl", "Dutch",   "Nederlands", _LAT, "nl", "nl", _wf("nl")),
+        Lang("en", "English", "English", _LAT, "en", "en", _wf("en"), flag="🇬🇧"),
+        Lang("hi", "Hindi",   "हिन्दी",    _DEV, "hi", "hi", _wf("hi"), font="Noto Sans Devanagari", flag="🇮🇳"),
+        Lang("de", "German",  "Deutsch", _LAT, "de", "de", _wf("de"), flag="🇩🇪"),
+        Lang("nl", "Dutch",   "Nederlands", _LAT, "nl", "nl", _wf("nl"), flag="🇳🇱"),
     ]
 }
 
@@ -47,6 +48,8 @@ def get(code: str) -> Lang:
 
 def script_ratio(text: str, code: str) -> float:
     """Share of letters (incl. combining marks) that belong to the expected script. 1.0 if no letters."""
+    if code not in LANGS:
+        return 1.0
     pat = re.compile(LANGS[code].script_re)
     letters = [c for c in text if unicodedata.category(c)[0] in "LM"]
     return sum(bool(pat.match(c)) for c in letters) / len(letters) if letters else 1.0

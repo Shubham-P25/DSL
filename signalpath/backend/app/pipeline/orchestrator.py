@@ -330,9 +330,11 @@ def run_job(job_id: str, upload_path: str | None = None) -> None:
         finish(job_id, warnings)
         log.info("Job %s marked DONE successfully.", job_id)
 
-        # Stage 5: Pre-translate all 4 core languages in background
-        core_targets = [l for l in ["en", "hi", "de", "nl"] if l != (lang or "en").lower()]
-        for t_lang in core_targets:
+        # Stage 5: pre-translate in the background — user's chosen language first
+        spoken = (lang or "en").lower()
+        core = [l for l in ("en", "hi", "de", "nl") if l != spoken]
+        order = ([target_lang] if target_lang in core else []) + [l for l in core if l != target_lang]
+        for t_lang in order:
             translate_service.enqueue(job_id, t_lang)
 
     except AppError as e:

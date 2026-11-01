@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     gemini_rpm: int = 10
     max_corrections_per_job: int = 300
-    translator: str = "auto"
+    translator: str = "google"      # google (fast, default) | gemini (higher quality, slower)
     max_backtrans_per_job: int = 200
     chunk_min_s: float = 45.0
     chunk_max_s: float = 60.0

@@ -55,11 +55,11 @@ def _wrap(text: str) -> str:
     return text[:cut] + "\n" + text[cut + 1:]
 
 
-def cues(segments: list[dict], lang: str = "en", variant: str = "final", mark_low_trust: bool = False) -> list[dict]:
+def cues(segments: list[dict], lang: str = "en", variant: str = "final", mark_low_trust: bool = False, source_lang: str = "en") -> list[dict]:
     all_tokens: list[tuple[str, float, float, bool]] = []
     for seg in segments:
         text = (seg.get("final_text") or seg.get("text", "")) if variant == "final" else seg.get("text", "")
-        if lang != "en":
+        if lang != source_lang:
             translation = (seg.get("translations") or {}).get(lang)
             if not translation or not translation.get("text"):
                 continue

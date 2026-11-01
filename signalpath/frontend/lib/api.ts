@@ -7,12 +7,18 @@ export class ApiError extends Error {
 }
 export type GetToken = () => Promise<string | null>;
 
+export interface TranslationStatus {
+  state: "idle" | "queued" | "running" | "done" | "failed";
+  done: number; total: number; error?: string | null; ready?: boolean;
+}
+
 export interface Job {
   id: string; title?: string; file_name?: string; platform?: string; source_url?: string; source_kind: string; thumbnail_url?: string;
   duration_s?: number; status: "queued" | "running" | "done" | "error" | "cancelled"; stage: string; progress: number;
   method?: string; warnings?: string[]; error_code?: string; error_message?: string; error_hint?: string;
   created_at: string; source_lang?: string; target_langs?: string[]; options?: Record<string, any>;
   translations_ready?: string[];
+  translation_status?: Record<string, TranslationStatus>;
 }
 
 export interface Word {
@@ -41,7 +47,7 @@ async function request<T>(path: string, getToken: GetToken, init: RequestInit = 
     if (typeof getToken === "function") {
       token = await Promise.race([
         getToken().catch(() => null),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 400)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
       ]);
     }
   } catch {
@@ -51,7 +57,6 @@ async function request<T>(path: string, getToken: GetToken, init: RequestInit = 
   if (token) headers.set("Authorization", `Bearer ${token}`);
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
 
-  console.log(`[SignalPath API] -> ${init.method || "GET"} ${API_BASE}${path}`);
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: "no-store" });
@@ -65,9 +70,7 @@ async function request<T>(path: string, getToken: GetToken, init: RequestInit = 
     console.error(`[SignalPath API] Error ${res.status} on ${path}:`, data);
     throw new ApiError(e?.code ?? `HTTP_${res.status}`, e?.message ?? "Request failed.", e?.hint, e?.retryable);
   }
-  const result = await res.json();
-  console.log(`[SignalPath API] <- Response from ${path}:`, result);
-  return result as T;
+  return (await res.json()) as T;
 }
 
 export const createJob = (g: GetToken, url: string, sourceLang = "en", correct = true, targetLang = "en") =>
@@ -93,13 +96,14 @@ export const deleteJob = (g: GetToken, id: string) => request<{ deleted: boolean
 export const getHealth = (g: GetToken) => request<Record<string, string | boolean>>("/system/health", g);
 
 export const requestTranslation = (g: GetToken, id: string, lang: string) =>
-  request<{ status: string; job_id: string; lang: string }>(`/jobs/${id}/translate`, g, {
-    method: "POST",
-    body: JSON.stringify({ lang }),
-  });
+  request<{ status: TranslationStatus["state"]; job_id: string; lang: string; done?: number; total?: number; error?: string | null }>(
+    `/jobs/${id}/translate`, g, { method: "POST", body: JSON.stringify({ lang }) });
+
+export const getTranslationStatus = (g: GetToken, id: string, lang: string) =>
+  request<TranslationStatus>(`/jobs/${id}/translate/${lang}`, g);
 
 export const getLanguages = (g: GetToken) =>
-  request<Array<{ code: string; name: string; native: string; font: string; tokenize: string }>>("/languages", g);
+  request<Array<{ code: string; name: string; native: string; font: string; tokenize: string; flag?: string }>>("/languages", g);
 
 export interface OcrResult {
   success: boolean;
@@ -130,7 +134,7 @@ export async function downloadExport(g: GetToken, id: string, format: "srt" | "v
     if (typeof g === "function") {
       token = await Promise.race([
         g().catch(() => null),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 400)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
       ]);
     }
   } catch {

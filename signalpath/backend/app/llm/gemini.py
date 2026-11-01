@@ -150,13 +150,13 @@ class GeminiClient:
         return models
 
     def generate_json(self, prompt: str, schema: dict | None = None, model: str | None = None, timeout: float = 45.0):
-        _limiter.wait()
         models = self._get_models_to_try(model)
         cached = cache.get(models[0], prompt)
         if cached is not None:
             return cached
         if not self.is_available():
             return None
+        _limiter.wait()
 
         from google.genai import types
 
@@ -172,7 +172,7 @@ class GeminiClient:
                         config=types.GenerateContentConfig(response_mime_type="application/json")
                     )
                     value = json.loads(response.text)
-                    cache.put(selected_model, prompt, value)
+                    cache.put(models[0], prompt, value)
                     return value
                 except Exception as exc:
                     err_text = str(exc).lower()
@@ -190,10 +190,10 @@ class GeminiClient:
         return None
 
     def generate_text(self, prompt: str, model: str | None = None, timeout: float = 45.0) -> str | None:
-        _limiter.wait()
-        models = self._get_models_to_try(model)
         if not self.is_available():
             return None
+        _limiter.wait()
+        models = self._get_models_to_try(model)
 
         for selected_model in models:
             for attempt in range(2):
@@ -221,9 +221,9 @@ class GeminiClient:
         """Direct multimodal YouTube transcription with timestamps via Gemini.
         Returns list of segments: [{'start': float, 'end': float, 'text': str}].
         """
-        _limiter.wait()
         if not self.is_available():
             return []
+        _limiter.wait()
 
         from google.genai import types
 
