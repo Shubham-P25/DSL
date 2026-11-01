@@ -109,6 +109,59 @@ def persist_segment(job_id: str, idx: int, s) -> None:
         session.commit()
 
 
+def coalesce_segs(segs: list, max_words: int = 10, max_chars: int = 50, max_dur: float = 4.5, max_gap: float = 1.0) -> list:
+    """Coalesce choppy or single-word Seg objects into natural sentence cues."""
+    if not segs:
+        return []
+    from app.asr.base import Seg
+    out = []
+    curr = segs[0]
+    curr_words = list(curr.words or [])
+    curr_text_parts = [curr.text.strip()]
+    curr_start = curr.start
+    curr_end = curr.end
+
+    for nxt in segs[1:]:
+        cand_text = " ".join(curr_text_parts + [nxt.text.strip()])
+        w_count = len(cand_text.split())
+        c_count = len(cand_text)
+        dur = nxt.end - curr_start
+        gap = nxt.start - curr_end
+        ends = curr_text_parts[-1].rstrip().endswith((".", "!", "?", "।"))
+
+        if ends or gap > max_gap or w_count > max_words or c_count > max_chars or dur > max_dur:
+            merged_seg = Seg(
+                start=round(curr_start, 2),
+                end=round(curr_end, 2),
+                text=" ".join(curr_text_parts).strip(),
+                words=curr_words,
+                lang=curr.lang,
+                acc=curr.acc,
+            )
+            out.append(merged_seg)
+            curr = nxt
+            curr_start = nxt.start
+            curr_end = nxt.end
+            curr_words = list(nxt.words or [])
+            curr_text_parts = [nxt.text.strip()]
+        else:
+            curr_end = max(curr_end, nxt.end)
+            curr_text_parts.append(nxt.text.strip())
+            curr_words.extend(nxt.words or [])
+
+    if curr_text_parts:
+        merged_seg = Seg(
+            start=round(curr_start, 2),
+            end=round(curr_end, 2),
+            text=" ".join(curr_text_parts).strip(),
+            words=curr_words,
+            lang=curr.lang,
+            acc=curr.acc,
+        )
+        out.append(merged_seg)
+    return out
+
+
 def persist_words(job_id: str, segs: list) -> None:
     with Session(engine) as session:
         existing = list(session.exec(select(Segment).where(Segment.job_id == job_id).order_by(Segment.idx)).all())
@@ -215,12 +268,12 @@ def run_job(job_id: str, upload_path: str | None = None) -> None:
             if prog is not None:
                 set_progress(job_id, 20.0 + prog * 60.0)
 
-        # Fast path if platform provided manual native captions
-        if media.native_captions and media.native_caption_kind == "manual":
-            log.info("Using platform manual captions directly (%d segments)", len(media.native_captions))
+        # Fast path if platform provided manual native captions or audio download was blocked
+        if media.native_captions and (media.native_caption_kind in ("manual", "gemini_url") or media.audio is None):
+            log.info("Using platform native captions directly (%d segments)", len(media.native_captions))
             from app.asr.base import Seg, Word
             lang = source_lang_req if source_lang_req != "auto" else "en"
-            method = "native_manual_captions"
+            method = "platform_captions"
             for idx, c in enumerate(media.native_captions):
                 tokens = c["text"].split()
                 step = (c["end"] - c["start"]) / max(len(tokens), 1)
@@ -238,6 +291,19 @@ def run_job(job_id: str, upload_path: str | None = None) -> None:
                 cancel,
                 warnings,
             )
+
+        # Ensure segments are coalesced if choppy/word-level
+        coalesced = coalesce_segs(collected_segs)
+        if len(coalesced) != len(collected_segs):
+            collected_segs = coalesced
+            # Replace database segments with cleanly merged sentence segments
+            with Session(engine) as session:
+                existing = list(session.exec(select(Segment).where(Segment.job_id == job_id)).all())
+                for old_s in existing:
+                    session.delete(old_s)
+                session.commit()
+            for idx, s in enumerate(collected_segs):
+                persist_segment(job_id, idx, s)
 
         save_lang_method(job_id, lang, method)
 
@@ -264,9 +330,10 @@ def run_job(job_id: str, upload_path: str | None = None) -> None:
         finish(job_id, warnings)
         log.info("Job %s marked DONE successfully.", job_id)
 
-        # Stage 5: Lazy translation (runs asynchronously in background)
-        if target_lang:
-            translate_service.enqueue(job_id, target_lang)
+        # Stage 5: Pre-translate all 4 core languages in background
+        core_targets = [l for l in ["en", "hi", "de", "nl"] if l != (lang or "en").lower()]
+        for t_lang in core_targets:
+            translate_service.enqueue(job_id, t_lang)
 
     except AppError as e:
         log.warning("Job %s failed with AppError: %s", job_id, e)

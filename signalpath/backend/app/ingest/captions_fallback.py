@@ -50,9 +50,50 @@ def _transcript_api(video_id: str) -> list[dict]:
     return [{"start": float(s), "end": float(s) + max(float(d), 0.5), "text": " ".join(t.split())} for t, s, d in rows if t.strip()]
 
 
+def coalesce_dicts(
+    segments: list[dict],
+    max_words: int = 10,
+    max_chars: int = 50,
+    max_duration: float = 4.5,
+    max_gap: float = 1.0,
+) -> list[dict]:
+    """Coalesce choppy or single-word fragments into natural multi-word sentence cues."""
+    if not segments:
+        return []
+    merged: list[dict] = []
+    curr_start = float(segments[0]["start"])
+    curr_end = float(segments[0]["end"])
+    curr_texts: list[str] = [segments[0]["text"]]
+
+    for next_seg in segments[1:]:
+        t_next = next_seg["text"].strip()
+        candidate = " ".join(curr_texts + [t_next])
+        w_count = len(candidate.split())
+        c_count = len(candidate)
+        duration = float(next_seg["end"]) - curr_start
+        gap = float(next_seg["start"]) - curr_end
+
+        last_ends = curr_texts[-1].rstrip().endswith((".", "!", "?", "।"))
+
+        if last_ends or gap > max_gap or w_count > max_words or c_count > max_chars or duration > max_duration:
+            merged.append({"start": round(curr_start, 2), "end": round(curr_end, 2), "text": " ".join(curr_texts).strip()})
+            curr_start = float(next_seg["start"])
+            curr_end = float(next_seg["end"])
+            curr_texts = [t_next]
+        else:
+            curr_end = max(curr_end, float(next_seg["end"]))
+            curr_texts.append(t_next)
+
+    if curr_texts:
+        merged.append({"start": round(curr_start, 2), "end": round(curr_end, 2), "text": " ".join(curr_texts).strip()})
+
+    return merged
+
+
 def fetch_caption_segments(url: str) -> list[dict]:
     segments = _ytdlp_subs(url)
     if segments:
-        return segments
+        return coalesce_dicts(segments)
     vid = youtube_id(url)
-    return _transcript_api(vid) if vid else []
+    raw = _transcript_api(vid) if vid else []
+    return coalesce_dicts(raw)

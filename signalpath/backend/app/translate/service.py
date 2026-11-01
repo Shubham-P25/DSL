@@ -237,18 +237,25 @@ Cues to translate:
                             cid = item.get("id")
                             t_val = item.get("translation")
                             if cid is not None and t_val and isinstance(t_val, str):
-                                translations_got[cid] = t_val.strip()
+                                translations_got[cid] = (t_val.strip(), "gemini")
                 except Exception as exc:
                     log.warning("Gemini 40-cue batch translation error: %s", exc)
 
+            # Concurrent fallback translation for any items missing
+            missing = [(s, text) for s, text in chunk if s.id not in translations_got]
+            if missing:
+                def _do_trans(item):
+                    s_obj, txt = item
+                    t_text, eng = _deep_translate(txt, src_lang, tgt_lang)
+                    return s_obj.id, (t_text, eng)
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(missing), 8)) as sub_pool:
+                    for cid, (t_text, eng) in sub_pool.map(_do_trans, missing):
+                        translations_got[cid] = (t_text, eng)
+
             for s, text in chunk:
                 trans = s.translations or {}
-                if s.id in translations_got:
-                    trans_text = translations_got[s.id]
-                    engine_used = "gemini"
-                else:
-                    trans_text, engine_used = _deep_translate(text, src_lang, tgt_lang)
-
+                trans_text, engine_used = translations_got.get(s.id, (text, "original"))
                 trans[tgt_lang] = {"text": trans_text, "engine": engine_used, "verified": False}
                 s.translations = dict(trans)
                 session.add(s)

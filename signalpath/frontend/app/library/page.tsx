@@ -123,12 +123,12 @@ export default function LibraryPage() {
       {/* FILTER TABS & SEARCH BOX */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         {/* TABS */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl self-start">
+        <div className="flex items-center gap-1.5 p-1 bg-paper border border-card-line rounded-xl self-start">
           <button
             type="button"
             onClick={() => setActiveTab("all")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              activeTab === "all" ? "bg-card text-ink shadow-xs" : "text-ink-2 hover:text-ink"
             }`}
           >
             All Items ({jobs.length})
@@ -137,7 +137,7 @@ export default function LibraryPage() {
             type="button"
             onClick={() => setActiveTab("captions")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "captions" ? "bg-white text-brand-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              activeTab === "captions" ? "bg-card text-primary shadow-xs" : "text-ink-2 hover:text-ink"
             }`}
           >
             <Video className="w-3.5 h-3.5" />
@@ -147,7 +147,7 @@ export default function LibraryPage() {
             type="button"
             onClick={() => setActiveTab("ocr")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "ocr" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              activeTab === "ocr" ? "bg-card text-teal shadow-xs" : "text-ink-2 hover:text-ink"
             }`}
           >
             <ScanText className="w-3.5 h-3.5" />
@@ -157,13 +157,13 @@ export default function LibraryPage() {
 
         {/* SEARCH BOX */}
         <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+          <Search className="w-4 h-4 text-ink-3 absolute left-3.5 top-3" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search titles, platforms, or text..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 shadow-xs"
+            className="w-full pl-10 pr-4 py-2 rounded-xl border border-card-line bg-paper text-xs text-ink placeholder-ink-3 focus:outline-hidden focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-xs"
           />
         </div>
       </div>
@@ -181,15 +181,15 @@ export default function LibraryPage() {
           {error.hint && <p className="text-xs text-slate-500">{error.hint}</p>}
         </div>
       ) : filteredJobs.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-16 text-center space-y-4 max-w-xl mx-auto shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center mx-auto">
-            {activeTab === "ocr" ? <ScanText className="w-6 h-6 stroke-1 text-indigo-500" /> : <Video className="w-6 h-6 stroke-1" />}
+        <div className="card-torque p-16 text-center space-y-4 max-w-xl mx-auto shadow-card">
+          <div className="w-12 h-12 rounded-2xl bg-paper text-ink-3 flex items-center justify-center mx-auto border border-card-line">
+            {activeTab === "ocr" ? <ScanText className="w-6 h-6 stroke-1 text-teal" /> : <Video className="w-6 h-6 stroke-1" />}
           </div>
           <div className="space-y-1">
-            <h3 className="font-bold text-slate-800 text-base">
+            <h3 className="font-bold text-ink text-base">
               {search ? "No matching items found" : "Your library is empty"}
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-3">
               {search
                 ? "Try searching for another keyword or clear the search input."
                 : activeTab === "ocr"
@@ -201,13 +201,13 @@ export default function LibraryPage() {
             <div className="flex items-center justify-center gap-3 pt-2">
               <Link
                 href="/new"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-brand-600 hover:bg-brand-700 shadow-sm"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-primary hover:bg-primary/90 shadow-sm"
               >
                 <PlusCircle className="w-3.5 h-3.5" /> Start Video Caption
               </Link>
               <Link
                 href="/ocr"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 shadow-xs"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs text-teal bg-teal/10 border border-teal/20 hover:bg-teal/20 shadow-xs"
               >
                 <ScanText className="w-3.5 h-3.5" /> Extract Image Text
               </Link>
@@ -227,7 +227,7 @@ export default function LibraryPage() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  className="bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow overflow-hidden flex flex-col group"
+                  className="card-torque shadow-card hover:shadow-lg transition-shadow overflow-hidden flex flex-col group"
                 >
                   {/* CARD HEADER / THUMBNAIL */}
                   {isOcr ? (
@@ -396,16 +396,16 @@ export default function LibraryPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[85vh]"
+              className="card-torque shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[85vh]"
             >
-              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="p-5 border-b border-card-line flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                  <div className="p-2 rounded-xl bg-teal/15 text-teal">
                     <ScanText className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-slate-900">{previewOcrJob.title}</h3>
-                    <p className="text-[11px] text-slate-500">
+                    <h3 className="font-bold text-sm text-ink">{previewOcrJob.title}</h3>
+                    <p className="text-[11px] text-ink-3">
                       {previewOcrJob.options?.document_type || "Extracted Document"} • {previewOcrJob.options?.word_count || 0} words
                     </p>
                   </div>

@@ -56,7 +56,7 @@ def _wrap(text: str) -> str:
 
 
 def cues(segments: list[dict], lang: str = "en", variant: str = "final", mark_low_trust: bool = False) -> list[dict]:
-    out = []
+    all_tokens: list[tuple[str, float, float, bool]] = []
     for seg in segments:
         text = (seg.get("final_text") or seg.get("text", "")) if variant == "final" else seg.get("text", "")
         if lang != "en":
@@ -68,8 +68,37 @@ def cues(segments: list[dict], lang: str = "en", variant: str = "final", mark_lo
         if not text:
             continue
         low = seg.get("trust_bucket") != "green"
-        for start, end, piece in _group(_tokens(seg, text)):
-            out.append({"start": start, "end": end, "text": ("[?] " if mark_low_trust and low else "") + piece, "low_trust": low})
+        for tok, s, e in _tokens(seg, text):
+            all_tokens.append((tok, s, e, low))
+
+    if not all_tokens:
+        return []
+
+    out = []
+    current: list[tuple[str, float, float, bool]] = []
+
+    def flush() -> None:
+        if current:
+            c_start = current[0][1]
+            c_end = current[-1][2]
+            c_text = " ".join(t for t, _, _, _ in current)
+            c_low = any(low for _, _, _, low in current)
+            prefix = "[?] " if (mark_low_trust and c_low) else ""
+            out.append({"start": c_start, "end": c_end, "text": prefix + c_text, "low_trust": c_low})
+
+    for tok_item in all_tokens:
+        tok, s, e, low = tok_item
+        if current:
+            gap = s - current[-1][2]
+            candidate_text = " ".join(t for t, _, _, _ in current) + " " + tok
+            ends_sentence = current[-1][0].endswith((".", "?", "!", "।"))
+            duration = e - current[0][1]
+            if len(candidate_text) > MAX_CHARS or duration > MAX_DUR or gap > 1.2 or (ends_sentence and len(candidate_text) > 30):
+                flush()
+                current.clear()
+        current.append(tok_item)
+    flush()
+
     out.sort(key=lambda c: c["start"])
     for i, cue in enumerate(out):
         cue["end"] = max(cue["end"], cue["start"] + MIN_DUR)
