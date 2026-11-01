@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import jobs, system, ocr
+from app.api.v1 import jobs, system, ocr, languages
 from app.core.config import settings
 from app.core.db import init_db
 from app.core.errors import AppError, app_error_handler, unhandled_error_handler
@@ -14,6 +14,12 @@ async def lifespan(_: FastAPI):
     configure_logging()
     settings.ensure_directories()
     init_db()
+    if settings.asr_provider in ("auto", "local"):
+        try:
+            from app.asr.local_fw import warmup
+            warmup()
+        except Exception as exc:
+            logging.getLogger(__name__).debug("Whisper warmup skipped: %s", exc)
     logging.getLogger(__name__).info("SignalPath started: %s", settings.model_dump_for_log())
     yield
 
@@ -32,6 +38,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(system.router, prefix=settings.api_prefix)
     app.include_router(jobs.router, prefix=settings.api_prefix)
+    app.include_router(languages.router, prefix=settings.api_prefix)
     app.include_router(ocr.router, prefix=settings.api_prefix)
     return app
 

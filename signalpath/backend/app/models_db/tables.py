@@ -90,3 +90,9 @@ class VideoLibraryEntry(SQLModel, table=True):
     video_title: str = ""
     chunk_text: str
     timestamp: float = 0.0
+
+
+class TranslationCache(SQLModel, table=True):
+    key: str = Field(primary_key=True)
+    text: str
+    created_at: datetime = Field(default_factory=utc_now)

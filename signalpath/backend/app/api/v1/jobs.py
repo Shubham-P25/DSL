@@ -13,12 +13,13 @@ from app.core.db import get_session
 from app.core.errors import AppError
 from app.export.captions import render_export
 from app.ingest.urls import normalize_url
+from app.langs.registry import LANGS
 from app.models_db.tables import Job, Segment
 from app.pipeline import runner
 from app.pipeline.ingest.upload import save_upload
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
-SEG_FIELDS = {"id", "idx", "start", "end", "text", "final_text", "correction", "correction_status", "trust_score", "trust_bucket", "human_edited", "translations"}
+SEG_FIELDS = {"id", "idx", "start", "end", "text", "final_text", "correction", "correction_status", "trust_score", "trust_bucket", "human_edited", "translations", "words"}
 JOB_EXCLUDE = {"cache_key", "timings"}
 
 
@@ -31,6 +32,10 @@ class JobCreate(BaseModel):
 
 class SegmentEdit(BaseModel):
     text: str
+
+
+class TranslateRequest(BaseModel):
+    lang: str
 
 
 def _owned(session: Session, job_id: str, user: str) -> Job:
@@ -47,7 +52,11 @@ def _segments(session: Session, job_id: str) -> list[Segment]:
 @router.post("", status_code=202)
 def create_job(body: JobCreate, user: str = Depends(current_user), session: Session = Depends(get_session)) -> dict:
     url = normalize_url(body.url)
-    target = body.target_lang if body.target_lang in {"en", "hi", "mr", "ta"} else "en"
+    target = body.target_lang or "en"
+    if target not in LANGS:
+        raise AppError("LANG_UNSUPPORTED", f"Language '{target}' is not supported.", http_status=400)
+    if body.source_lang and body.source_lang != "auto" and body.source_lang not in LANGS:
+        raise AppError("LANG_UNSUPPORTED", f"Source language '{body.source_lang}' is not supported.", http_status=400)
     key = hashlib.sha256(f"{user}|{url}|{body.source_lang}|{target}|{body.correct}".encode()).hexdigest()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.cache_ttl_h)
     cached = session.exec(select(Job).where(Job.cache_key == key, Job.status == "done", Job.finished_at >= cutoff)).first()
@@ -64,7 +73,11 @@ def create_job(body: JobCreate, user: str = Depends(current_user), session: Sess
 @router.post("/upload", status_code=202)
 async def create_upload(file: UploadFile = File(...), source_lang: str = Form("auto"), target_lang: str = Form("en"), correct: bool = Form(True),
                         user: str = Depends(current_user), session: Session = Depends(get_session)) -> dict:
-    target = target_lang if target_lang in {"en", "hi", "mr", "ta"} else "en"
+    target = target_lang or "en"
+    if target not in LANGS:
+        raise AppError("LANG_UNSUPPORTED", f"Language '{target}' is not supported.", http_status=400)
+    if source_lang and source_lang != "auto" and source_lang not in LANGS:
+        raise AppError("LANG_UNSUPPORTED", f"Source language '{source_lang}' is not supported.", http_status=400)
     path = await save_upload(file)
     job = Job(id=str(uuid.uuid4()), user_id=user, source_kind="upload", file_name=file.filename, title=file.filename,
               source_lang=source_lang, target_langs=[target], options={"correct": correct, "target_lang": target}, status="queued", stage="queued")
@@ -85,7 +98,17 @@ def list_jobs(user: str = Depends(current_user), session: Session = Depends(get_
 @router.get("/{job_id}")
 def get_job(job_id: str, user: str = Depends(current_user), session: Session = Depends(get_session)) -> dict:
     job = _owned(session, job_id, user)
-    return {"job": job.model_dump(exclude=JOB_EXCLUDE), "segments": [s.model_dump(include=SEG_FIELDS) for s in _segments(session, job_id)]}
+    segs = []
+    ready_langs = set()
+    for s in _segments(session, job_id):
+        d = s.model_dump(include=SEG_FIELDS)
+        d["acc"] = s.trust_score
+        segs.append(d)
+        if s.translations:
+            ready_langs.update(s.translations.keys())
+    job_dict = job.model_dump(exclude=JOB_EXCLUDE)
+    job_dict["translations_ready"] = sorted(list(ready_langs))
+    return {"job": job_dict, "segments": segs}
 
 
 @router.patch("/{job_id}/segments/{segment_id}")
@@ -109,6 +132,23 @@ def delete_job(job_id: str, user: str = Depends(current_user), session: Session 
     session.delete(job)
     session.commit()
     return {"deleted": True}
+
+
+@router.post("/{job_id}/translate", status_code=202)
+def request_translation(
+    job_id: str,
+    body: TranslateRequest,
+    user: str = Depends(current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    job = _owned(session, job_id, user)
+    if job.status != "done":
+        raise AppError("NOT_READY", "Captions are not finished yet.", http_status=409)
+    if body.lang not in LANGS:
+        raise AppError("LANG_UNSUPPORTED", f"Language '{body.lang}' is not supported.", http_status=400)
+    from app.translate.service import enqueue
+    enqueue(job_id, body.lang)
+    return {"status": "enqueued", "job_id": job_id, "lang": body.lang}
 
 
 @router.get("/{job_id}/export")

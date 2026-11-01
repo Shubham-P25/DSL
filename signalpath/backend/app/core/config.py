@@ -24,9 +24,16 @@ class Settings(BaseSettings):
     db_path: Path = BACKEND_DIR / "data" / "signalpath.db"
     index_dir: Path = BACKEND_DIR / "data" / "indexes"
     model_dir: Path = BACKEND_DIR / "app" / "ml" / "artifacts"
-    whisper_model: str = Field(default="base", validation_alias=AliasChoices("WHISPER_MODEL", "WHISPER_MODEL_SIZE"))
+    asr_provider: str = "auto"          # auto | groq | local | gemini
+    whisper_model: str = Field(default="small", validation_alias=AliasChoices("WHISPER_MODEL", "WHISPER_MODEL_SIZE"))
     whisper_compute: str = "int8"
     whisper_device: str = "cpu"
+    asr_batch: int = 8
+    beam_size: int = 2
+    cpu_threads: int = 0
+    groq_api_key: str = ""
+    groq_model: str = "whisper-large-v3-turbo"
+    max_crosscheck_segs: int = 40
     window_s: float = 30.0
     window_overlap_s: float = 1.5
     max_video_minutes: int = 60

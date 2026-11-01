@@ -5,17 +5,18 @@ from pathlib import Path
 import yt_dlp
 from app.ingest.urls import youtube_id
 from app.ingest.ytdlp_opts import base_opts
+from app.langs.registry import LANGS
 from app.pipeline.ingest.platform_captions import parse_vtt
 
 log = logging.getLogger(__name__)
-LANGS = ["en", "en-orig", "hi", "mr"]
+SUB_LANGS = list(LANGS.keys()) + ["en-orig"]
 
 
 def _ytdlp_subs(url: str) -> list[dict]:
     with tempfile.TemporaryDirectory(prefix="sp-subs-") as directory:
         opts = base_opts(use_cookies=True)
         opts.update({"skip_download": True, "writesubtitles": True, "writeautomaticsub": True,
-                     "subtitleslangs": LANGS, "subtitlesformat": "vtt",
+                     "subtitleslangs": SUB_LANGS, "subtitlesformat": "vtt",
                      "outtmpl": str(Path(directory) / "sub.%(ext)s")})
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -34,12 +35,12 @@ def _transcript_api(video_id: str) -> list[dict]:
     except Exception:
         return []
     try:  # v1.x API
-        items = YouTubeTranscriptApi().fetch(video_id, languages=LANGS)
+        items = YouTubeTranscriptApi().fetch(video_id, languages=SUB_LANGS)
         rows = [(i.text, i.start, i.duration) for i in items]
     except Exception:
         try:  # older API
             if hasattr(YouTubeTranscriptApi, "get_transcript"):
-                items = YouTubeTranscriptApi.get_transcript(video_id, languages=LANGS)
+                items = YouTubeTranscriptApi.get_transcript(video_id, languages=SUB_LANGS)
                 rows = [(i["text"], i["start"], i["duration"]) for i in items]
             else:
                 return []

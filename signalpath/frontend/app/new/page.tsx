@@ -32,7 +32,7 @@ export default function CaptionStudioPage() {
   const [url, setUrl] = useState(initialUrl);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [sourceLang, setSourceLang] = useState("auto");
-  const [targetLang, setTargetLang] = useState<"en" | "hi" | "mr" | "ta">("en");
+  const [targetLang, setTargetLang] = useState<string>("en");
   const [correct, setCorrect] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
@@ -333,17 +333,23 @@ export default function CaptionStudioPage() {
                 </span>
               </label>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
                 {[
                   { code: "en", label: "English", sub: "English", flag: "🇬🇧" },
                   { code: "hi", label: "Hindi", sub: "हिंदी", flag: "🇮🇳" },
                   { code: "mr", label: "Marathi", sub: "मराठी", flag: "🚩" },
+                  { code: "pa", label: "Punjabi", sub: "ਪੰਜਾਬੀ", flag: "ੴ" },
                   { code: "ta", label: "Tamil", sub: "தமிழ்", flag: "🏛️" },
+                  { code: "kn", label: "Kannada", sub: "ಕನ್ನಡ", flag: "🌸" },
+                  { code: "ru", label: "Russian", sub: "Русский", flag: "🇷🇺" },
+                  { code: "de", label: "German", sub: "Deutsch", flag: "🇩🇪" },
+                  { code: "ja", label: "Japanese", sub: "日本語", flag: "🇯🇵" },
+                  { code: "zh", label: "Chinese", sub: "中文", flag: "🇨🇳" },
                 ].map((item) => (
                   <button
                     key={item.code}
                     type="button"
-                    onClick={() => setTargetLang(item.code as any)}
+                    onClick={() => setTargetLang(item.code)}
                     className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative ${
                       targetLang === item.code
                         ? "border-brand-600 bg-brand-50/70 ring-2 ring-brand-500/20 shadow-xs"
@@ -363,7 +369,7 @@ export default function CaptionStudioPage() {
               </div>
 
               <p className="text-[11px] text-slate-500">
-                Captions will be generated and confidence-scored directly in <strong>{targetLang === "en" ? "English" : targetLang === "hi" ? "Hindi (हिंदी)" : targetLang === "mr" ? "Marathi (मराठी)" : "Tamil (தமிழ்)"}</strong>. Only your selected language is generated, saving quota and processing much faster!
+                Captions will be generated and confidence-scored in <strong>{targetLang.toUpperCase()}</strong>. Additional languages can be added later on-demand with lazy caching!
               </p>
             </div>
           </div>

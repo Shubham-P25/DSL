@@ -12,12 +12,27 @@ export interface Job {
   duration_s?: number; status: "queued" | "running" | "done" | "error" | "cancelled"; stage: string; progress: number;
   method?: string; warnings?: string[]; error_code?: string; error_message?: string; error_hint?: string;
   created_at: string; source_lang?: string; target_langs?: string[]; options?: Record<string, any>;
+  translations_ready?: string[];
 }
+
+export interface Word {
+  t: string;
+  s: number;
+  e: number;
+  p?: number | null;
+  acc?: number | null;
+  f?: string[];
+  alt?: string | null;
+  text?: string;
+}
+
 export interface Segment {
   id: number; idx: number; start: number; end: number; text: string; final_text?: string | null;
   correction?: string | null; correction_status?: string; trust_score?: number | null;
   trust_bucket: "green" | "yellow" | "red"; human_edited?: boolean;
-  translations?: Record<string, { text: string; lang?: string; engine?: string }>;
+  acc?: number | null;
+  words?: Word[];
+  translations?: Record<string, { text: string; lang?: string; engine?: string; verified?: boolean }>;
 }
 
 async function request<T>(path: string, getToken: GetToken, init: RequestInit = {}): Promise<T> {
@@ -76,6 +91,15 @@ export const editSegment = (g: GetToken, id: string, segId: number, text: string
   request<Segment>(`/jobs/${id}/segments/${segId}`, g, { method: "PATCH", body: JSON.stringify({ text }) });
 export const deleteJob = (g: GetToken, id: string) => request<{ deleted: boolean }>(`/jobs/${id}`, g, { method: "DELETE" });
 export const getHealth = (g: GetToken) => request<Record<string, string | boolean>>("/system/health", g);
+
+export const requestTranslation = (g: GetToken, id: string, lang: string) =>
+  request<{ status: string; job_id: string; lang: string }>(`/jobs/${id}/translate`, g, {
+    method: "POST",
+    body: JSON.stringify({ lang }),
+  });
+
+export const getLanguages = (g: GetToken) =>
+  request<Array<{ code: string; name: string; native: string; font: string; tokenize: string }>>("/languages", g);
 
 export interface OcrResult {
   success: boolean;

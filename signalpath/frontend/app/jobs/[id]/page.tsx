@@ -9,6 +9,8 @@ import {
   getJob, 
   editSegment, 
   downloadExport, 
+  requestTranslation,
+  getLanguages,
   Job, 
   Segment, 
   ApiError 
@@ -48,20 +50,27 @@ export default function JobDetailPage() {
   const [exporting, setExporting] = useState<string | null>(null);
 
   // Multilingual & Dual View options
-  const [selectedLang, setSelectedLang] = useState<"en" | "hi" | "mr" | "ta">("en");
-  const [exportLang, setExportLang] = useState<"en" | "hi" | "mr" | "ta">("en");
+  const [selectedLang, setSelectedLang] = useState<string>("en");
+  const [exportLang, setExportLang] = useState<string>("en");
   const [viewMode, setViewMode] = useState<"single" | "sideBySide">("single");
+  const [translatingLang, setTranslatingLang] = useState<string | null>(null);
 
-  const languages = [
+  const [languagesList, setLanguagesList] = useState<Array<{ code: string; name: string; native: string; flag: string }>>([
     { code: "en", name: "English", native: "English", flag: "🇬🇧" },
     { code: "hi", name: "Hindi", native: "हिंदी", flag: "🇮🇳" },
     { code: "mr", name: "Marathi", native: "मराठी", flag: "🚩" },
+    { code: "pa", name: "Punjabi", native: "ਪੰਜਾਬੀ", flag: "ੴ" },
     { code: "ta", name: "Tamil", native: "தமிழ்", flag: "🏛️" },
-  ];
+    { code: "kn", name: "Kannada", native: "ಕನ್ನಡ", flag: "🌸" },
+    { code: "ru", name: "Russian", native: "Русский", flag: "🇷🇺" },
+    { code: "de", name: "German", native: "Deutsch", flag: "🇩🇪" },
+    { code: "ja", name: "Japanese", native: "日本語", flag: "🇯🇵" },
+    { code: "zh", name: "Chinese", native: "中文", flag: "🇨🇳" },
+  ]);
 
   const targetLangCode = (job?.target_langs && job.target_langs[0]) || "en";
-  const sourceLangCode = (job?.source_lang && job.source_lang !== "auto") ? job.source_lang : "";
-  const availableLanguages = languages;
+  const sourceLangCode = (job?.source_lang && job.source_lang !== "auto") ? job.source_lang : "en";
+  const availableLanguages = languagesList;
 
   // Filter & editing
   const [filterLowTrustOnly, setFilterLowTrustOnly] = useState(false);
@@ -87,11 +96,9 @@ export default function JobDetailPage() {
         setLoading(false);
 
         if (data.job?.target_langs && data.job.target_langs[0]) {
-          const tLang = data.job.target_langs[0] as any;
-          if (["en", "hi", "mr", "ta"].includes(tLang)) {
-            setSelectedLang((prev) => (prev === "en" ? tLang : prev));
-            setExportLang((prev) => (prev === "en" ? tLang : prev));
-          }
+          const tLang = data.job.target_langs[0] as string;
+          setSelectedLang((prev) => (prev === "en" ? tLang : prev));
+          setExportLang((prev) => (prev === "en" ? tLang : prev));
         }
 
         if (data.job.status !== "done" && data.job.status !== "error" && data.job.status !== "cancelled") {
@@ -105,12 +112,39 @@ export default function JobDetailPage() {
     }
 
     fetchStatus();
+    getLanguages(getToken)
+      .then((langs) => {
+        if (mounted && langs && langs.length > 0) {
+          setLanguagesList(langs.map((l) => ({
+            code: l.code,
+            name: l.name,
+            native: l.native,
+            flag: l.code === "en" ? "🇬🇧" : l.code === "hi" ? "🇮🇳" : l.code === "mr" ? "🚩" : l.code === "pa" ? "ੴ" : l.code === "ta" ? "🏛️" : l.code === "kn" ? "🌸" : l.code === "ru" ? "🇷🇺" : l.code === "de" ? "🇩🇪" : l.code === "ja" ? "🇯🇵" : l.code === "zh" ? "🇨🇳" : "🌐",
+          })));
+        }
+      })
+      .catch(() => {});
 
     return () => {
       mounted = false;
       if (timer) clearTimeout(timer);
     };
   }, [id, getToken]);
+
+  const handleSelectLang = async (langCode: string) => {
+    setSelectedLang(langCode);
+    setExportLang(langCode);
+    if (viewMode === "sideBySide") setViewMode("single");
+    const isReady = job?.translations_ready?.includes(langCode) || langCode === (job?.source_lang || "en");
+    if (!isReady && id && job?.status === "done") {
+      setTranslatingLang(langCode);
+      try {
+        await requestTranslation(getToken, id, langCode);
+      } catch (err) {
+        console.warn("Could not request translation:", err);
+      }
+    }
+  };
 
   const handleExport = async (format: "srt" | "vtt" | "txt") => {
     if (!job) return;
@@ -438,7 +472,7 @@ export default function JobDetailPage() {
               <div className="space-y-1.5 pt-1 border-t border-slate-100">
                 <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
                   <span>Export Language</span>
-                  <span className="text-brand-600 font-semibold">{languages.find(l => l.code === exportLang)?.name}</span>
+                  <span className="text-brand-600 font-semibold">{availableLanguages.find(l => l.code === exportLang)?.name}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {availableLanguages.map((l) => (
@@ -529,25 +563,43 @@ export default function JobDetailPage() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                {/* Language Switcher: English and Selected Language + Dual View */}
-                <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl">
-                  {availableLanguages.map((l) => (
-                    <button
-                      key={l.code}
-                      type="button"
-                      onClick={() => {
-                        setSelectedLang(l.code as any);
-                        if (viewMode === "sideBySide") setViewMode("single");
-                      }}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        selectedLang === l.code && viewMode === "single"
-                          ? "bg-white text-brand-600 shadow-xs"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
+                {/* Language Switcher */}
+                <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl flex-wrap">
+                  {availableLanguages.slice(0, 6).map((l) => {
+                    const isReady = job?.translations_ready?.includes(l.code) || l.code === (job?.source_lang || "en");
+                    const isTranslating = translatingLang === l.code && !isReady;
+                    return (
+                      <button
+                        key={l.code}
+                        type="button"
+                        onClick={() => handleSelectLang(l.code)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          selectedLang === l.code && viewMode === "single"
+                            ? "bg-white text-brand-600 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        <span>{l.flag} {l.native}</span>
+                        {isTranslating && <Loader2 className="w-2.5 h-2.5 animate-spin text-brand-600" />}
+                        {!isReady && l.code !== (job?.source_lang || "en") && !isTranslating && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Click to translate" />
+                        )}
+                      </button>
+                    );
+                  })}
+                  {availableLanguages.length > 6 && (
+                    <select
+                      value={selectedLang}
+                      onChange={(e) => handleSelectLang(e.target.value)}
+                      className="px-2 py-1 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-700 focus:outline-hidden"
                     >
-                      <span>{l.flag} {l.native}</span>
-                    </button>
-                  ))}
+                      {availableLanguages.slice(6).map((l) => (
+                        <option key={l.code} value={l.code}>
+                          {l.flag} {l.native} ({l.name})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {availableLanguages.length > 1 && (
                     <button
                       type="button"
@@ -603,7 +655,7 @@ export default function JobDetailPage() {
                       <div className="flex items-center gap-2">
                         {selectedLang !== "en" && (
                           <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-100">
-                            {languages.find((l) => l.code === selectedLang)?.native}
+                            {availableLanguages.find((l) => l.code === selectedLang)?.native}
                           </span>
                         )}
 
@@ -682,14 +734,14 @@ export default function JobDetailPage() {
                       <div className="space-y-1.5 pt-0.5">
                         <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
                           <span className="text-[10px] uppercase font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-sm">
-                            {languages.find((l) => l.code === sourceLang)?.native || "Original"}
+                            {availableLanguages.find((l) => l.code === sourceLang)?.native || "Original"}
                           </span>
                           <span>{nativeSpokenText}</span>
                         </div>
                         <div className="text-sm font-semibold text-slate-900 bg-indigo-50/70 border border-indigo-100/90 p-2.5 rounded-xl flex items-start justify-between gap-2">
                           <div>
                             <span className="text-[10px] uppercase font-bold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded-sm mr-2">
-                              {languages.find((l) => l.code === selectedLang)?.native || selectedLang}
+                              {availableLanguages.find((l) => l.code === selectedLang)?.native || selectedLang}
                             </span>
                             <span>{currentText}</span>
                           </div>
@@ -700,19 +752,67 @@ export default function JobDetailPage() {
                         </div>
                       </div>
                     ) : (
-                      <div
-                        onClick={() => handleStartEdit(seg)}
-                        className="text-sm font-medium text-slate-800 cursor-pointer hover:text-brand-600 transition-colors flex items-start justify-between gap-3"
-                      >
-                        <div className="space-y-0.5">
-                          <span>{currentText}</span>
-                          {selectedLang !== "en" && currentText && (
-                            <div className="text-[11px] text-indigo-600 font-medium">
-                              {languages.find((l) => l.code === selectedLang)?.native} Caption
-                            </div>
-                          )}
-                        </div>
-                        <Edit3 className="w-3.5 h-3.5 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+                      <div className="text-sm font-medium text-slate-800 space-y-1.5">
+                        {seg.words && seg.words.length > 0 && (selectedLang === sourceLang || !seg.translations?.[selectedLang]?.text) ? (
+                          <div className="flex flex-wrap gap-1.5 items-center">
+                            {seg.words.map((w, wIdx) => {
+                              const wordText = w.t || w.text || "";
+                              const wordAcc = w.acc ?? w.p ?? 0.85;
+                              const isRed = wordAcc < 0.55;
+                              const isYellow = wordAcc >= 0.55 && wordAcc < 0.80;
+                              const flagsList = w.f || [];
+                              const hasAlt = Boolean(w.alt);
+
+                              return (
+                                <span
+                                  key={wIdx}
+                                  className={`relative group/word inline-flex items-center px-1.5 py-0.5 rounded text-xs transition-all cursor-pointer ${
+                                    isRed
+                                      ? "bg-rose-100 text-rose-900 border-b-2 border-rose-500 font-bold"
+                                      : isYellow
+                                      ? "bg-amber-100/80 text-amber-900 border-b-2 border-amber-400 font-medium"
+                                      : "text-slate-800 hover:bg-slate-100"
+                                  }`}
+                                  onClick={() => {
+                                    if (hasAlt) {
+                                      setEditingSegId(seg.id);
+                                      setEditText(seg.text.replace(wordText, w.alt!));
+                                    } else {
+                                      handleStartEdit(seg);
+                                    }
+                                  }}
+                                >
+                                  <span>{wordText}</span>
+                                  {/* Interactive accuracy tooltip */}
+                                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/word:flex flex-col items-center z-30 pointer-events-none">
+                                    <span className="bg-slate-900 text-white text-[10px] py-1 px-2.5 rounded-md shadow-xl whitespace-nowrap space-y-0.5">
+                                      <span className="font-bold flex items-center gap-1.5">
+                                        <span>{Math.round(wordAcc * 100)}% accuracy</span>
+                                        {hasAlt && <span className="text-amber-300">Suggestion: {w.alt}</span>}
+                                      </span>
+                                      {flagsList.length > 0 && (
+                                        <span className="text-slate-400 block text-[9px]">{flagsList.join(" • ")}</span>
+                                      )}
+                                    </span>
+                                  </span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => handleStartEdit(seg)}
+                            className="cursor-pointer hover:text-brand-600 transition-colors flex items-start justify-between gap-3"
+                          >
+                            <span>{currentText}</span>
+                            <Edit3 className="w-3.5 h-3.5 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+                          </div>
+                        )}
+                        {selectedLang !== sourceLang && currentText && (
+                          <div className="text-[11px] text-indigo-600 font-medium">
+                            {availableLanguages.find((l) => l.code === selectedLang)?.native || selectedLang} Caption
+                          </div>
+                        )}
                       </div>
                     )}
 

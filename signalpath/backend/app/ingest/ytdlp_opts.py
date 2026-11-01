@@ -2,7 +2,10 @@
 import shutil
 from pathlib import Path
 from app.core.config import settings, BACKEND_DIR
+from app.ingest.audio import ffmpeg_path
 from app.ingest.urls import is_youtube
+
+FORMAT = "bestaudio[abr<=64]/worstaudio/bestaudio/worst"
 
 
 def cookie_opts() -> dict:
@@ -48,6 +51,10 @@ def base_opts(client: list[str] | None = None, use_cookies: bool = True) -> dict
     runtimes = _js_runtimes()
     if runtimes:
         opts["js_runtimes"] = runtimes
+    opts["format"] = FORMAT
+    ff = ffmpeg_path()
+    if ff:
+        opts["ffmpeg_location"] = ff
     if use_cookies:
         opts.update(cookie_opts())
     if client:

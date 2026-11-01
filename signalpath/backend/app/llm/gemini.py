@@ -4,6 +4,7 @@ direct YouTube/audio transcription, and end-to-end caption verification.
 import json
 import logging
 import re
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,25 @@ from app.core.config import settings
 from app.llm import cache
 
 log = logging.getLogger(__name__)
+
+
+class _Limiter:
+    """Enforces request-per-minute rate limit for Gemini API calls to prevent 429 quota exhaustion."""
+    def __init__(self, rpm: int):
+        self.gap = 60.0 / max(rpm, 1)
+        self.next = 0.0
+        self.lock = threading.Lock()
+
+    def wait(self):
+        with self.lock:
+            now = time.monotonic()
+            delay = max(0.0, self.next - now)
+            self.next = max(now, self.next) + self.gap
+        if delay > 0:
+            time.sleep(delay)
+
+
+_limiter = _Limiter(settings.gemini_rpm)
 
 # Key rotation state: 0 = primary key, 1 = backup key
 _active_key_index = 0
@@ -130,6 +150,7 @@ class GeminiClient:
         return models
 
     def generate_json(self, prompt: str, schema: dict | None = None, model: str | None = None, timeout: float = 45.0):
+        _limiter.wait()
         models = self._get_models_to_try(model)
         cached = cache.get(models[0], prompt)
         if cached is not None:
@@ -169,6 +190,7 @@ class GeminiClient:
         return None
 
     def generate_text(self, prompt: str, model: str | None = None, timeout: float = 45.0) -> str | None:
+        _limiter.wait()
         models = self._get_models_to_try(model)
         if not self.is_available():
             return None
@@ -199,6 +221,7 @@ class GeminiClient:
         """Direct multimodal YouTube transcription with timestamps via Gemini.
         Returns list of segments: [{'start': float, 'end': float, 'text': str}].
         """
+        _limiter.wait()
         if not self.is_available():
             return []
 
@@ -285,6 +308,7 @@ Rules:
 
     def transcribe_audio_file(self, audio_path: str, spoken_lang: str = "auto", timeout: float = 120.0) -> list[dict]:
         """Upload and transcribe local audio file using Gemini Multimodal Files API."""
+        _limiter.wait()
         if not self.is_available() or not Path(audio_path).exists():
             return []
 
@@ -364,9 +388,9 @@ Ensure accurate timestamps in seconds (float). Keep segments 2-7 seconds. Strict
         if not self.is_available() or not segments:
             return segments
 
-        lang_names = {"en": "English", "hi": "Hindi", "mr": "Marathi", "ta": "Tamil"}
-        src_name = lang_names.get(source_lang, source_lang)
-        tgt_name = lang_names.get(target_lang, target_lang)
+        from app.langs.registry import LANGS
+        src_name = LANGS[source_lang].name if source_lang in LANGS else source_lang
+        tgt_name = LANGS[target_lang].name if target_lang in LANGS else target_lang
 
         batch_size = 15
         total_batches = (len(segments) + batch_size - 1) // batch_size
