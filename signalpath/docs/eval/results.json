@@ -1,0 +1,5 @@
+{
+  "status": "pending",
+  "normalization": "v1",
+  "note": "Offline evaluation requires running notebook/02_eval_pipeline.ipynb on an accessible reference dataset."
+}
